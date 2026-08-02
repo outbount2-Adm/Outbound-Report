@@ -616,7 +616,7 @@ if execute_clicked:
                 'pickCompletedTime - Released Date Pack', 'Packing Complete', 'Shipped Date', 'Handover Date', 
                 'End Ship Date', 'Packing to Shipped Date', 'Packing to Handover', 'Shipped Date to Handover', 
                 'End Ship Date to Shipped Date', 'Kota', 'Provinsi', 'Status', 'Payment Menthood', 
-                'total order amount', 'Dokumen', 'Attachment', 'Times Proses Kurir', 'Times Proses Kurir to Shipped Date', 
+                'total order amount', 'Dokumen', 'Attachment', 'Times Proses Kurir', 'Times Proses Kurir to Shpped Date', 
                 'Status Manifest', 'Status Late', 'Remark Late', 'Pay-Created', 'Created-Released', 'Released-Pick', 
                 'Pick-Pack', 'Pack-Collect', 'Collect-Manifest', 'Manifest-Endshipdate', 'Max', 'System', 'Admin_Akhir', 
                 'Picker', 'Packer', 'Outbound', 'Kurir_Akhir', 'Late Proses By'
@@ -632,7 +632,7 @@ if execute_clicked:
 
             st.session_state['processed_result'] = final_df
 
-            # Export Excel dengan 2 Sheet: Laporan_WMS dan Report
+            # Export Excel dengan 2 Sheet: Laporan_WMS dan Report (Dibuat Otomatis Tanpa File Eksternal)
             output = BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 final_df.to_excel(writer, index=False, sheet_name='Laporan_WMS')
@@ -640,12 +640,16 @@ if execute_clicked:
             output.seek(0)
             wb_out = openpyxl.load_workbook(output)
 
-            # Menyalin template report ke sheet 'Report' secara langsung
-            wb_template = openpyxl.load_workbook('Template Report.xlsx')
-            ws_template = wb_template.active
+            # Membuat sheet 'Report' secara otomatis di Python
             ws_report = wb_out.create_sheet(title='Report')
-            for row in ws_template.iter_rows(values_only=True):
-                ws_report.append(row)
+            ws_report.cell(row=1, column=6, value=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            
+            headers_report = [
+                "B2B", "Tujuan", "PO Qty", "Brand", "Pending Qty", "Shipped Qty", 
+                "Ready To Ship", "Remark", "Category", "Brand", "Qty", "Total", "Order pool - Delivery"
+            ]
+            for col_num, h_text in enumerate(headers_report, 1):
+                ws_report.cell(row=2, column=col_num, value=h_text)
 
             final_output = BytesIO()
             wb_out.save(final_output)
