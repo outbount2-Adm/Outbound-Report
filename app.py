@@ -7,12 +7,16 @@ from io import BytesIO
 
 st.set_page_config(page_title="Report Outbound Auto-Processor", layout="wide", page_icon="📦")
 
-# --- MENGHILANGKAN ELEMEN BAWAAN STREAMLIT ---
+# --- MENGHILANGKAN ELEMEN BAWAAN STREAMLIT & BADGE ---
 hide_streamlit_style = """
             <style>
             #MainMenu {visibility: hidden;} /* Menyembunyikan menu hamburger di kanan atas */
             footer {visibility: hidden;} /* Menyembunyikan footer 'Made with Streamlit' */
             header {visibility: hidden;} /* Menyembunyikan header garis putih di atas */
+            
+            /* Menyembunyikan tombol Deploy dan Badge Logo Streamlit di pojok kanan bawah */
+            .stDeployButton {display:none;}
+            [data-testid="viewerBadge"] {display: none !important;}
             </style>
             """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
@@ -45,14 +49,29 @@ if submit_admin:
 current_admin = st.session_state['saved_admin']
 
 # ==========================================
-# 1. FITUR UPLOAD MASSAL
+# 1. FITUR UPLOAD MASSAL & CLEAR DATA
 # ==========================================
 st.subheader("Upload Data Sumber")
-uploaded_files = st.file_uploader(
-    "Upload file sumber (.xlsx / .csv) sekaligus di sini (termasuk Master.xlsx):", 
-    accept_multiple_files=True, 
-    type=['xlsx', 'csv']
-)
+
+# Inisialisasi state untuk clear data
+if 'file_uploader_key' not in st.session_state:
+    st.session_state['file_uploader_key'] = 0
+
+col_up1, col_up2 = st.columns([4, 1])
+with col_up1:
+    uploaded_files = st.file_uploader(
+        "Upload file sumber (.xlsx / .csv) sekaligus di sini (termasuk Master.xlsx):", 
+        accept_multiple_files=True, 
+        type=['xlsx', 'csv'],
+        key=f"file_uploader_{st.session_state['file_uploader_key']}"
+    )
+
+with col_up2:
+    st.write("") # Spasi agar sejajar
+    st.write("") 
+    if st.button("🗑️ Clear Data", type="secondary"):
+        st.session_state['file_uploader_key'] += 1
+        st.rerun()
 
 if uploaded_files:
     # 4. Tombol diubah menjadi "Generated Data"
@@ -273,7 +292,7 @@ if uploaded_files:
                 res['Created Time'] = res[col_created] if col_created else np.nan
                 res['Ordered Date'] = res[col_ordered] if col_ordered else np.nan
                 
-                # --- PERBAIKAN BARU: Ekstrak data terakhir jika ada koma pada Picking Task Created Time ---
+                # --- PERBAIKAN: Ambil data terakhir jika ada koma pada Picking Task Created Time ---
                 if col_pick_created:
                     def get_last_picking_time(x):
                         if pd.isna(x): return x
