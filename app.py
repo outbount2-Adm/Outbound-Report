@@ -5,7 +5,7 @@ import traceback
 import datetime
 from io import BytesIO
 
-st.set_page_config(page_title="Report Outbound , layout="wide", page_icon="📦")
+st.set_page_config(page_title="Report Outbound" , layout="wide", page_icon="📦")
 
 # --- MENGHILANGKAN ELEMEN BAWAAN STREAMLIT & BADGE ---
 hide_streamlit_style = """
