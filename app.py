@@ -640,15 +640,12 @@ if execute_clicked:
             output.seek(0)
             wb_out = openpyxl.load_workbook(output)
 
-            # Memuat template report dan menambahkannya sebagai sheet 'Report'
-            try:
-                wb_template = openpyxl.load_workbook('Template Report.xlsx')
-                ws_template = wb_template.active
-                ws_report = wb_out.create_sheet(title='Report')
-                for row in ws_template.iter_rows(values_only=True):
-                    ws_report.append(row)
-            except Exception:
-                pass
+            # Menyalin template report ke sheet 'Report' secara langsung
+            wb_template = openpyxl.load_workbook('Template Report.xlsx')
+            ws_template = wb_template.active
+            ws_report = wb_out.create_sheet(title='Report')
+            for row in ws_template.iter_rows(values_only=True):
+                ws_report.append(row)
 
             final_output = BytesIO()
             wb_out.save(final_output)
