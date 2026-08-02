@@ -7,6 +7,16 @@ from io import BytesIO
 
 st.set_page_config(page_title="Report Outbound Auto-Processor", layout="wide", page_icon="📦")
 
+# --- MENYEMBUNYIKAN MENU POJOK KANAN ATAS DAN FOOTER POJOK KANAN BAWAH ---
+hide_streamlit_style = """
+<style>
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
+</style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 # 6. Judul Aplikasi
 st.title("📦 Report Outbound Auto-Processor")
 # 7. Sub Title
@@ -45,8 +55,19 @@ uploaded_files = st.file_uploader(
 )
 
 if uploaded_files:
-    # 4. Tombol diubah menjadi "Generated Data"
-    if st.button("Generated Data", type="primary"):
+    # Membuat dua kolom untuk tombol Generated Data dan Clear Data berdampingan
+    col_btn1, col_btn2 = st.columns(2)
+    with col_btn1:
+        btn_generate = st.button("Generated Data", type="primary", use_container_width=True)
+    with col_btn2:
+        btn_clear = st.button("Clear Data", use_container_width=True)
+
+    # Aksi tombol Clear Data
+    if btn_clear:
+        st.rerun()
+
+    # Aksi tombol Generated Data
+    if btn_generate:
         with st.spinner("Sedang membaca file, mencocokkan baris, dan mengkalkulasi data..."):
             try:
                 # --- A. IDENTIFIKASI FILE BERDASARKAN NAMA ---
