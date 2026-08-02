@@ -19,7 +19,7 @@ st.set_page_config(
 current_date = datetime.datetime.now().strftime("%B %d, %Y")
 
 # ==========================================
-# 2. CSS KUSTOM UNTUK DESAIN EXACT MATCH & TOMBOL BIRU MUTLAK
+# 2. CSS KUSTOM UNTUK DESAIN EXACT MATCH
 # ==========================================
 custom_css = """
 <style>
@@ -79,11 +79,10 @@ custom_css = """
         padding: 20px !important;
     }
 
-    /* MEMAKSA TOMBOL UTAMA (Data processing) MENJADI WARNA BIRU MUTLAK */
+    /* Tombol Utama (Data processing) -> Warna Biru */
     div[data-testid="stButton"] > button[kind="primary"],
     button[data-testid="baseButton-primary"], 
-    .stButton > button[type="primary"],
-    .stButton > button {
+    .stButton > button[type="primary"] {
         background-color: #2563eb !important;
         background-image: none !important;
         color: white !important;
@@ -97,17 +96,26 @@ custom_css = """
     
     div[data-testid="stButton"] > button[kind="primary"]:hover,
     button[data-testid="baseButton-primary"]:hover, 
-    .stButton > button[type="primary"]:hover,
-    .stButton > button:hover {
+    .stButton > button[type="primary"]:hover {
         background-color: #1d4ed8 !important;
         color: white !important;
     }
 
-    /* Tombol Sekunder (Clear Data & Submit Admin) agar tetap putih/clean */
-    .stButton > button.secondary-btn, div.row-widget.stButton:nth-of-type(2) button {
+    /* Tombol Standar/Polos (Submit Admin & Clear Data) */
+    div[data-testid="stButton"] > button:not([kind="primary"]):not([type="primary"]) {
         background-color: #ffffff !important;
-        color: #475569 !important;
+        color: #334155 !important;
         border: 1px solid #cbd5e1 !important;
+        border-radius: 8px !important;
+        font-weight: 500 !important;
+        padding: 10px 16px !important;
+        transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+    
+    div[data-testid="stButton"] > button:not([kind="primary"]):not([type="primary"]):hover {
+        background-color: #f8fafc !important;
+        border-color: #94a3b8 !important;
+        color: #0f172a !important;
     }
 </style>
 """
@@ -135,7 +143,8 @@ col_adm1, col_adm2 = st.columns([4, 1])
 with col_adm1:
     admin_input_temp = st.text_input("Admin", value=st.session_state['saved_admin'], label_visibility="collapsed", placeholder="Ketik nama Officer / Admin...")
 with col_adm2:
-    submit_admin = st.button("Submit Admin", type="secondary", use_container_width=True)
+    # Tombol polos tanpa parameter type
+    submit_admin = st.button("Submit Admin", use_container_width=True)
 
 if submit_admin:
     st.session_state['saved_admin'] = admin_input_temp
@@ -165,7 +174,8 @@ with col_up1:
     )
 
 with col_up2:
-    if st.button("🗑️ Clear Data", type="secondary", use_container_width=True):
+    # Tombol polos tanpa parameter type
+    if st.button("🗑️ Clear Data", use_container_width=True):
         st.session_state['file_uploader_key'] += 1
         if 'processed_result' in st.session_state:
             del st.session_state['processed_result']
@@ -546,7 +556,7 @@ if execute_clicked:
             is_no_attach = res['Attachment'].replace({0: np.nan, '0': np.nan, '': np.nan}).isna()
             res['Dokumen'] = np.where(is_no_attach, 'Not yet Input', 'YES')
 
-            res['Times Proses Kurir to Shipped Date'] = format_timedelta_hhmmss(to_dt('Times Proses Kurir') - to_dt('Shipped Date'))
+            res['Times Proses Kurir to Shpped Date'] = format_timedelta_hhmmss(to_dt('Times Proses Kurir') - to_dt('Shipped Date'))
 
             plat_cond = res.get('Platform', pd.Series(['']*len(res))).astype(str).str.lower().isin(['shopee', 'tiktok'])
             ai_val = to_dt('Times Proses Kurir')
@@ -617,7 +627,7 @@ if execute_clicked:
                 'Wave ID', 'Created Time', 'Ordered Date', 'Picking Task Created Time', 
                 'pickCompletedTime - Released Date Pack', 'Packing Complete', 'Shipped Date', 'Handover Date', 
                 'End Ship Date', 'Packing to Shipped Date', 'Packing to Handover', 'Shipped Date to Handover', 
-                'End Ship Date to Shpped Date', 'Kota', 'Provinsi', 'Status', 'Payment Menthood', 
+                'End Ship Date to Shipped Date', 'Kota', 'Provinsi', 'Status', 'Payment Menthood', 
                 'total order amount', 'Dokumen', 'Attachment', 'Times Proses Kurir', 'Times Proses Kurir to Shpped Date', 
                 'Status Manifest', 'Status Late', 'Remark Late', 'Pay-Created', 'Created-Released', 'Released-Pick', 
                 'Pick-Pack', 'Pack-Collect', 'Collect-Manifest', 'Manifest-Endshipdate', 'Max', 'System', 'Admin_Akhir', 
