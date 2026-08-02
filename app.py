@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import traceback
 import datetime
-import time
 from io import BytesIO
 
 # ==========================================
@@ -89,7 +88,7 @@ custom_css = """
         font-weight: 700 !important;
         letter-spacing: 0.5px;
         padding: 14px 24px !important;
-        transition: background-color 0.3s ease;
+        transition: background-color: 0.3s ease;
     }
     .stButton > button[type="primary"]:hover {
         background-color: #1d4ed8 !important;
@@ -165,7 +164,6 @@ with col_up1:
 with col_up2:
     if st.button("🗑️ Clear Data", type="secondary", use_container_width=True):
         st.session_state['file_uploader_key'] += 1
-        # Hapus cache data hasil proses sebelumnya saat Clear Data ditekan
         if 'processed_result' in st.session_state:
             del st.session_state['processed_result']
         if 'excel_data' in st.session_state:
@@ -183,18 +181,12 @@ execute_clicked = st.button("🚀 EXECUTE BATCH PROCESSING", type="primary", use
 
 if execute_clicked:
     if uploaded_files:
-        # Animasi Buffer Load & Teks Processing
-        progress_text = "Processing..."
-        my_bar = st.progress(0, text=progress_text)
+        # Inisialisasi Progress Bar Dinamis
+        progress_bar = st.progress(0, text="Processing... (0%)")
         
-        for percent_complete in range(100):
-            time.sleep(0.01) # Simulasi kecepatan buffer load
-            my_bar.progress(percent_complete + 1, text=progress_text)
-        
-        my_bar.empty() # Menghilangkan bar setelah selesai
-
         try:
-            # --- A. IDENTIFIKASI FILE BERDASARKAN NAMA ---
+            # --- TAHAP 1: Membaca File (10%) ---
+            progress_bar.progress(10, text="Processing... (Membaca file sumber) [10%]")
             dfs = {}
             master_store_db = {}
             master_carrier_db = {}
@@ -263,7 +255,8 @@ if execute_clicked:
             for key in ['op_log', 'pack_task', 'erp']:
                 if key not in dfs: dfs[key] = pd.DataFrame()
 
-            # --- B. BASIS DATA MENGIKUTI SELURUH ROW HO OUTBOUND ---
+            # --- TAHAP 2: Menggabungkan Basis Data / Merge (35%) ---
+            progress_bar.progress(35, text="Processing... (Mencocokkan baris & Merge data) [35%]")
             df_ho = dfs['ho_outbound'].copy()
             if 'WMS Order' not in df_ho.columns:
                 st.error(f"❌ Kolom 'WMS Order' (atau 'No WMS') tidak ditemukan di file HO Outbound.")
@@ -368,6 +361,8 @@ if execute_clicked:
 
             res['Admin'] = current_admin
 
+            # --- TAHAP 3: Kalkulasi Waktu & SLA (70%) ---
+            progress_bar.progress(70, text="Processing... (Kalkulasi selisih waktu & SLA) [70%]")
             ho_col_map = {}
             for c in df_ho.columns:
                 c_low = c.lower()
@@ -612,6 +607,8 @@ if execute_clicked:
             res['Kurir_Akhir'] = np.nan
             res['Late Proses By'] = np.nan
             
+            # --- TAHAP 4: Menyusun Kolon Final & Export Excel (90%) ---
+            progress_bar.progress(90, text="Processing... (Menyusun laporan akhir & Excel) [90%]")
             kolom_final = [
                 'WMS Order', 'ERP Document Number', 'Tracking#/PRO#', 'PlatformOrder', 'Staged User', 
                 'Platform', 'Brand', 'Brand 2', 'Admin', 'Load', 'Kurir', 'Loader', 'Tanggal Handover', 
@@ -636,7 +633,6 @@ if execute_clicked:
             # Simpan hasil ke session_state agar preview tidak hilang saat di-download
             st.session_state['processed_result'] = final_df
 
-            # Proses BytesIO untuk Excel
             output = BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 final_df.to_excel(writer, index=False, sheet_name='Laporan_WMS')
@@ -661,6 +657,10 @@ if execute_clicked:
                     worksheet.set_column(col_num, col_num, 16)
 
             st.session_state['excel_data'] = output.getvalue()
+
+            # --- SELESAI (100%) ---
+            progress_bar.progress(100, text="Processing Selesai! (100%)")
+            progress_bar.empty() # Hilangkan progress bar setelah selesai
 
         except Exception as e:
             st.error(f"❌ Terjadi kesalahan Sistem: {e}")
