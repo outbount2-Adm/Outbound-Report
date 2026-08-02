@@ -8,12 +8,13 @@ st.set_page_config(
     layout="wide"
 )
 
-# KODE CSS: Untuk menyembunyikan header, footer, dan menu pojok kanan atas
+# KODE CSS: Menyembunyikan menu atas, footer, dan tombol "Manage app" di pojok kanan bawah
 hide_streamlit_style = """
     <style>
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
+    .stAppDeployButton {display: none;}
     </style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
@@ -52,7 +53,3 @@ if uploaded_files:
     st.success(f"Total {len(uploaded_files)} file berhasil diunggah!")
     for file in uploaded_files:
         st.write(f"📁 **{file.name}**")
-        
-    # Contoh pemrosesan data (bisa Anda sesuaikan dengan logika pengolahan Anda selanjutnya)
-    # Misalnya membaca file Excel menggunakan pandas:
-    # df = pd.read_excel(uploaded_files[0])
