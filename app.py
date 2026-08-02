@@ -11,7 +11,7 @@ from io import BytesIO
 st.set_page_config(
     page_title="Outbound Auto-Processor", 
     layout="wide", 
-    page_icon="icon.png", # Menggunakan ikon baru jika sudah diunggah
+    page_icon="icon.png", 
     initial_sidebar_state="collapsed"
 )
 
@@ -78,7 +78,7 @@ custom_css = """
     }
 
     /* Tombol Utama (EXECUTE BATCH PROCESSING) */
-    .stButton > button[kind="primary"] {
+    .stButton > button[type="primary"] {
         background-color: #2563eb !important;
         color: white !important;
         border: none !important;
@@ -88,12 +88,12 @@ custom_css = """
         padding: 14px 24px !important;
         transition: background-color 0.3s ease;
     }
-    .stButton > button[kind="primary"]:hover {
+    .stButton > button[type="primary"]:hover {
         background-color: #1d4ed8 !important;
     }
 
     /* Tombol Sekunder (Clear Buffer & Submit Admin) */
-    .stButton > button[kind="secondary"] {
+    .stButton > button[type="secondary"] {
         background-color: #ffffff !important;
         color: #475569 !important;
         border: 1px solid #cbd5e1 !important;
@@ -101,7 +101,7 @@ custom_css = """
         font-weight: 500 !important;
         padding: 14px 24px !important;
     }
-    .stButton > button[kind="secondary"]:hover {
+    .stButton > button[type="secondary"]:hover {
         background-color: #f1f5f9 !important;
     }
 </style>
@@ -111,24 +111,20 @@ st.markdown(custom_css, unsafe_allow_html=True)
 # ==========================================
 # 3. HEADER & META INFO SECTION
 # ==========================================
-# Simpan nama admin di session state
 if 'saved_admin' not in st.session_state:
     st.session_state['saved_admin'] = "Admin Logistik"
 
-# Layout Judul dan Ikon Bersebelahan
 col_header1, col_header2 = st.columns([1, 15])
 with col_header1:
     try:
         st.image("icon.png", width=60)
     except:
-        pass # Abaikan jika belum upload file gambar
+        pass 
 with col_header2:
     st.markdown('<h1 style="margin-top: -10px;">Outbound Auto-Processor</h1>', unsafe_allow_html=True)
 
-# Teks Officer & Date
 st.markdown(f'<div class="meta-text">Officer: <span class="officer-name">{st.session_state["saved_admin"]}</span> | Date: {current_date}</div>', unsafe_allow_html=True)
 
-# Input Admin & Tombol Submit
 col_adm1, col_adm2 = st.columns([4, 1])
 with col_adm1:
     admin_input_temp = st.text_input("Admin", value=st.session_state['saved_admin'], label_visibility="collapsed", placeholder="Ketik nama Officer / Admin...")
@@ -149,7 +145,6 @@ st.divider()
 st.markdown('<h3>📁 Data Center</h3>', unsafe_allow_html=True)
 st.markdown('<div style="color: #475569; font-size: 14px; margin-bottom: 12px;">Upload multiple source files (Order Summary, Operation Log, ERP, HO Outbound, Master) to begin.</div>', unsafe_allow_html=True)
 
-# Inisialisasi state untuk clear data
 if 'file_uploader_key' not in st.session_state:
     st.session_state['file_uploader_key'] = 0
 
@@ -175,16 +170,13 @@ st.write("")
 # ==========================================
 st.markdown('<h3>⚙️ Processing Queue</h3>', unsafe_allow_html=True)
 
-# Tombol Eksekusi
 execute_clicked = st.button("🚀 EXECUTE BATCH PROCESSING", type="primary", use_container_width=True)
 
 if execute_clicked:
     if uploaded_files:
         with st.spinner("Sedang membaca file, mencocokkan baris, dan mengkalkulasi data..."):
             try:
-                # =========================================================
-                # LOGIKA PENGOLAHAN DATA ASLI (TIDAK ADA YANG DIUBAH)
-                # =========================================================
+                # --- A. IDENTIFIKASI FILE BERDASARKAN NAMA ---
                 dfs = {}
                 master_store_db = {}
                 master_carrier_db = {}
@@ -200,7 +192,6 @@ if execute_clicked:
                     df = df.loc[:, ~df.columns.duplicated()]
                     
                     if 'master' in file_name:
-                        # Proses Database Master
                         if 'Store Number' in df.columns:
                             store_df = df[['Store Number', 'Brand', 'Brand2']].dropna(subset=['Store Number'])
                             for _, row in store_df.iterrows():
@@ -285,6 +276,33 @@ if execute_clicked:
                 res['Tracking#/PRO#'] = res[col_track].apply(lambda x: str(x).strip() if pd.notna(x) and str(x).strip() != 'nan' else '') if col_track else ''
                 res['PlatformOrder'] = res[col_ref].apply(lambda x: str(x).strip() if pd.notna(x) and str(x).strip() != 'nan' else '') if col_ref else ''
 
+                # Platform (Dihitung lebih awal agar bisa dipakai di kondisi Other)
+                col_sales = next((c for c in res.columns if 'sales channel' in c.lower()), None)
+                res['Platform'] = res[col_sales] if col_sales else np.nan
+                
+                plat_is_na = res['Platform'].isna() | (res['Platform'].astype(str).str.strip() == '') | (res['Platform'].astype(str).str.lower() == 'nan')
+                plat_order_str = res['PlatformOrder'].astype(str).str.strip()
+                
+                kondisi_ck = plat_is_na & plat_order_str.str.startswith("CK")
+                kondisi_kosong = plat_is_na & (plat_order_str == "")
+                
+                res['Platform'] = np.where(
+                    kondisi_ck | kondisi_kosong, "Other",
+                    np.where(plat_is_na, "Webstore", res['Platform'])
+                )
+
+                # --- KONDISI 1: Jika ERP, Tracking, PlatformOrder kosong & Platform == "Other", isi dengan WMS Order ---
+                is_platform_other = res['Platform'].astype(str).str.strip() == 'Other'
+
+                erp_empty = res['ERP Document Number'].isna() | (res['ERP Document Number'].astype(str).str.strip() == '') | (res['ERP Document Number'].astype(str).str.lower() == 'nan')
+                res['ERP Document Number'] = np.where(erp_empty & is_platform_other, res['WMS Order'], res['ERP Document Number'])
+
+                track_empty = res['Tracking#/PRO#'].isna() | (res['Tracking#/PRO#'].astype(str).str.strip() == '') | (res['Tracking#/PRO#'].astype(str).str.lower() == 'nan')
+                res['Tracking#/PRO#'] = np.where(track_empty & is_platform_other, res['WMS Order'], res['Tracking#/PRO#'])
+
+                platord_empty = res['PlatformOrder'].isna() | (res['PlatformOrder'].astype(str).str.strip() == '') | (res['PlatformOrder'].astype(str).str.lower() == 'nan')
+                res['PlatformOrder'] = np.where(platord_empty & is_platform_other, res['WMS Order'], res['PlatformOrder'])
+
                 # Staged User (Lookup dari Export Operation Log dengan filter Event == 'Ship')
                 df_op = dfs['op_log']
                 if not df_op.empty and 'Event' in df_op.columns and 'WMS Order#' in df_op.columns and 'operator' in df_op.columns:
@@ -306,21 +324,11 @@ if execute_clicked:
                 else:
                     res['Staged User'] = np.nan
 
-                # Platform
-                col_sales = next((c for c in res.columns if 'sales channel' in c.lower()), None)
-                res['Platform'] = res[col_sales] if col_sales else np.nan
-                
-                # --- Penyesuaian Kondisi Platform ---
-                plat_is_na = res['Platform'].isna() | (res['Platform'].astype(str).str.strip() == '') | (res['Platform'].astype(str).str.lower() == 'nan')
-                plat_order_str = res['PlatformOrder'].astype(str).str.strip()
-                
-                kondisi_ck = plat_is_na & plat_order_str.str.startswith("CK")
-                kondisi_kosong = plat_is_na & (plat_order_str == "")
-                
-                res['Platform'] = np.where(
-                    kondisi_ck | kondisi_kosong, "Other",
-                    np.where(plat_is_na, "Webstore", res['Platform'])
-                )
+                # --- KONDISI 2: Jika Staged User kosong, ambil dari HO Outbound kolom PIC HAND OVER ---
+                col_pic_ho = next((c for c in df_ho.columns if 'pic hand over' in c.lower()), None)
+                if col_pic_ho:
+                    staged_empty = res['Staged User'].isna() | (res['Staged User'].astype(str).str.strip() == '') | (res['Staged User'].astype(str).str.lower() == 'nan')
+                    res['Staged User'] = np.where(staged_empty, df_ho[col_pic_ho], res['Staged User'])
 
                 # --- FUNGSI BANTUAN UNTUK Membersihkan key lookup ---
                 def safe_key(x):
@@ -372,7 +380,6 @@ if execute_clicked:
                 if 'Tgl_HO' in ho_col_map:
                     def fix_date_only(val):
                         if pd.isna(val): return val
-                        # Jika terbaca datetime, tukar ulang posisi bulan yang dijadikan hari oleh Excel
                         if isinstance(val, datetime.datetime):
                             return f"{val.month:02d}/{val.day:02d}/{val.year}"
                         return str(val)
@@ -440,7 +447,6 @@ if execute_clicked:
                 if 'Waktu_HO' in ho_col_map:
                     def fix_ho_date(val):
                         if pd.isna(val): return val
-                        # Jika terbaca datetime, tukar ulang posisi bulan yang dijadikan hari oleh Excel
                         if isinstance(val, datetime.datetime):
                             return f"{val.month:02d}/{val.day:02d}/{val.year} {val.hour:02d}:{val.minute:02d}:{val.second:02d}"
                         return str(val)
@@ -621,7 +627,7 @@ if execute_clicked:
                     'Wave ID', 'Created Time', 'Ordered Date', 'Picking Task Created Time', 
                     'pickCompletedTime - Released Date Pack', 'Packing Complete', 'Shipped Date', 'Handover Date', 
                     'End Ship Date', 'Packing to Shipped Date', 'Packing to Handover', 'Shipped Date to Handover', 
-                    'End Ship Date to Shipped Date', 'Kota', 'Provinsi', 'Status', 'Payment Menthood', 
+                    'End Ship Date to Shpped Date', 'Kota', 'Provinsi', 'Status', 'Payment Menthood', 
                     'total order amount', 'Dokumen', 'Attachment', 'Times Proses Kurir', 'Times Proses Kurir to Shipped Date', 
                     'Status Manifest', 'Status Late', 'Remark Late', 'Pay-Created', 'Created-Released', 'Released-Pick', 
                     'Pick-Pack', 'Pack-Collect', 'Collect-Manifest', 'Manifest-Endshipdate', 'Max', 'System', 'Admin_Akhir', 
