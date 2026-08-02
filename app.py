@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import traceback
 import datetime
+import openpyxl
 from io import BytesIO
 
 # ==========================================
@@ -88,7 +89,7 @@ custom_css = """
         font-weight: 700 !important;
         letter-spacing: 0.5px;
         padding: 14px 24px !important;
-        transition: background-color: 0.3s ease;
+        transition: background-color 0.3s ease;
     }
     .stButton > button[type="primary"]:hover {
         background-color: #1d4ed8 !important;
@@ -181,7 +182,6 @@ execute_clicked = st.button("🚀 EXECUTE BATCH PROCESSING", type="primary", use
 
 if execute_clicked:
     if uploaded_files:
-        # Inisialisasi Progress Bar Dinamis
         progress_bar = st.progress(0, text="Processing... (0%)")
         
         try:
@@ -607,7 +607,7 @@ if execute_clicked:
             res['Kurir_Akhir'] = np.nan
             res['Late Proses By'] = np.nan
             
-            # --- TAHAP 4: Menyusun Kolon Final & Export Excel (90%) ---
+            # --- TAHAP 4: Menyusun Kolom Final & Export Excel (90%) ---
             progress_bar.progress(90, text="Processing... (Menyusun laporan akhir & Excel) [90%]")
             kolom_final = [
                 'WMS Order', 'ERP Document Number', 'Tracking#/PRO#', 'PlatformOrder', 'Staged User', 
@@ -630,37 +630,33 @@ if execute_clicked:
             final_df = final_df.loc[:, ~final_df.columns.duplicated()]
             final_df.insert(0, 'No', range(1, len(final_df) + 1))
 
-            # Simpan hasil ke session_state agar preview tidak hilang saat di-download
             st.session_state['processed_result'] = final_df
 
+            # Export Excel dengan 2 Sheet: Laporan_WMS dan Report
             output = BytesIO()
-            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 final_df.to_excel(writer, index=False, sheet_name='Laporan_WMS')
-                workbook = writer.book
-                worksheet = writer.sheets['Laporan_WMS']
-                format_header = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1})
-                
-                col_idx_track = list(final_df.columns).index('Tracking#/PRO#')
-                col_idx_plat = list(final_df.columns).index('PlatformOrder')
-                
-                for row_num in range(len(final_df)):
-                    val_track = str(final_df.iloc[row_num]['Tracking#/PRO#'])
-                    val_plat = str(final_df.iloc[row_num]['PlatformOrder'])
-                    
-                    if val_track != 'nan' and val_track != '':
-                        worksheet.write_string(row_num + 1, col_idx_track, val_track)
-                    if val_plat != 'nan' and val_plat != '':
-                        worksheet.write_string(row_num + 1, col_idx_plat, val_plat)
 
-                for col_num, value in enumerate(final_df.columns.values):
-                    worksheet.write(0, col_num, value, format_header)
-                    worksheet.set_column(col_num, col_num, 16)
+            output.seek(0)
+            wb_out = openpyxl.load_workbook(output)
 
-            st.session_state['excel_data'] = output.getvalue()
+            # Memuat template report dan menambahkannya sebagai sheet 'Report'
+            try:
+                wb_template = openpyxl.load_workbook('Template Report.xlsx')
+                ws_template = wb_template.active
+                ws_report = wb_out.create_sheet(title='Report')
+                for row in ws_template.iter_rows(values_only=True):
+                    ws_report.append(row)
+            except Exception:
+                pass
+
+            final_output = BytesIO()
+            wb_out.save(final_output)
+            st.session_state['excel_data'] = final_output.getvalue()
 
             # --- SELESAI (100%) ---
             progress_bar.progress(100, text="Processing Selesai! (100%)")
-            progress_bar.empty() # Hilangkan progress bar setelah selesai
+            progress_bar.empty()
 
         except Exception as e:
             st.error(f"❌ Terjadi kesalahan Sistem: {e}")
