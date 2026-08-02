@@ -19,7 +19,7 @@ st.set_page_config(
 current_date = datetime.datetime.now().strftime("%B %d, %Y")
 
 # ==========================================
-# 2. CSS KUSTOM UNTUK DESAIN EXACT MATCH & TOMBOL BIRU
+# 2. CSS KUSTOM UNTUK DESAIN EXACT MATCH & TOMBOL BIRU MUTLAK
 # ==========================================
 custom_css = """
 <style>
@@ -79,9 +79,13 @@ custom_css = """
         padding: 20px !important;
     }
 
-    /* Memaksa Tombol Utama (Data Processing) Menjadi Warna Biru */
-    button[data-testid="baseButton-primary"], .stButton > button[type="primary"] {
+    /* MEMAKSA TOMBOL UTAMA (Data processing) MENJADI WARNA BIRU MUTLAK */
+    div[data-testid="stButton"] > button[kind="primary"],
+    button[data-testid="baseButton-primary"], 
+    .stButton > button[type="primary"],
+    .stButton > button {
         background-color: #2563eb !important;
+        background-image: none !important;
         color: white !important;
         border: none !important;
         border-radius: 8px !important;
@@ -90,22 +94,20 @@ custom_css = """
         padding: 14px 24px !important;
         transition: background-color 0.3s ease;
     }
-    button[data-testid="baseButton-primary"]:hover, .stButton > button[type="primary"]:hover {
+    
+    div[data-testid="stButton"] > button[kind="primary"]:hover,
+    button[data-testid="baseButton-primary"]:hover, 
+    .stButton > button[type="primary"]:hover,
+    .stButton > button:hover {
         background-color: #1d4ed8 !important;
         color: white !important;
     }
 
-    /* Tombol Sekunder (Clear Data & Submit Admin) */
-    .stButton > button[type="secondary"] {
+    /* Tombol Sekunder (Clear Data & Submit Admin) agar tetap putih/clean */
+    .stButton > button.secondary-btn, div.row-widget.stButton:nth-of-type(2) button {
         background-color: #ffffff !important;
         color: #475569 !important;
         border: 1px solid #cbd5e1 !important;
-        border-radius: 8px !important;
-        font-weight: 500 !important;
-        padding: 14px 24px !important;
-    }
-    .stButton > button[type="secondary"]:hover {
-        background-color: #f1f5f9 !important;
     }
 </style>
 """
@@ -615,7 +617,7 @@ if execute_clicked:
                 'Wave ID', 'Created Time', 'Ordered Date', 'Picking Task Created Time', 
                 'pickCompletedTime - Released Date Pack', 'Packing Complete', 'Shipped Date', 'Handover Date', 
                 'End Ship Date', 'Packing to Shipped Date', 'Packing to Handover', 'Shipped Date to Handover', 
-                'End Ship Date to Shipped Date', 'Kota', 'Provinsi', 'Status', 'Payment Menthood', 
+                'End Ship Date to Shpped Date', 'Kota', 'Provinsi', 'Status', 'Payment Menthood', 
                 'total order amount', 'Dokumen', 'Attachment', 'Times Proses Kurir', 'Times Proses Kurir to Shpped Date', 
                 'Status Manifest', 'Status Late', 'Remark Late', 'Pay-Created', 'Created-Released', 'Released-Pick', 
                 'Pick-Pack', 'Pack-Collect', 'Collect-Manifest', 'Manifest-Endshipdate', 'Max', 'System', 'Admin_Akhir', 
