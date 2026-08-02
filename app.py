@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import traceback
 import datetime
-import openpyxl
 from io import BytesIO
 
 # ==========================================
@@ -80,7 +79,7 @@ custom_css = """
         padding: 20px !important;
     }
 
-    /* Tombol Utama (EXECUTE BATCH PROCESSING) */
+    /* Tombol Utama (DATA PROCESSING - Warna Biru) */
     .stButton > button[type="primary"] {
         background-color: #2563eb !important;
         color: white !important;
@@ -178,7 +177,7 @@ st.write("")
 # ==========================================
 st.markdown('<h3>⚙️ Processing Queue</h3>', unsafe_allow_html=True)
 
-execute_clicked = st.button("🚀 EXECUTE BATCH PROCESSING", type="primary", use_container_width=True)
+execute_clicked = st.button("🚀 Data processing", type="primary", use_container_width=True)
 
 if execute_clicked:
     if uploaded_files:
@@ -632,28 +631,31 @@ if execute_clicked:
 
             st.session_state['processed_result'] = final_df
 
-            # Export Excel dengan 2 Sheet: Laporan_WMS dan Report (Dibuat Otomatis Tanpa File Eksternal)
+            # Export Excel (Hanya sheet Laporan_WMS)
             output = BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 final_df.to_excel(writer, index=False, sheet_name='Laporan_WMS')
+                workbook = writer.book
+                worksheet = writer.sheets['Laporan_WMS']
+                format_header = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1})
+                
+                col_idx_track = list(final_df.columns).index('Tracking#/PRO#')
+                col_idx_plat = list(final_df.columns).index('PlatformOrder')
+                
+                for row_num in range(len(final_df)):
+                    val_track = str(final_df.iloc[row_num]['Tracking#/PRO#'])
+                    val_plat = str(final_df.iloc[row_num]['PlatformOrder'])
+                    
+                    if val_track != 'nan' and val_track != '':
+                        worksheet.write_string(row_num + 1, col_idx_track, val_track)
+                    if val_plat != 'nan' and val_plat != '':
+                        worksheet.write_string(row_num + 1, col_idx_plat, val_plat)
 
-            output.seek(0)
-            wb_out = openpyxl.load_workbook(output)
+                for col_num, value in enumerate(final_df.columns.values):
+                    worksheet.write(0, col_num, value, format_header)
+                    worksheet.set_column(col_num, col_num, 16)
 
-            # Membuat sheet 'Report' secara otomatis di Python
-            ws_report = wb_out.create_sheet(title='Report')
-            ws_report.cell(row=1, column=6, value=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-            
-            headers_report = [
-                "B2B", "Tujuan", "PO Qty", "Brand", "Pending Qty", "Shipped Qty", 
-                "Ready To Ship", "Remark", "Category", "Brand", "Qty", "Total", "Order pool - Delivery"
-            ]
-            for col_num, h_text in enumerate(headers_report, 1):
-                ws_report.cell(row=2, column=col_num, value=h_text)
-
-            final_output = BytesIO()
-            wb_out.save(final_output)
-            st.session_state['excel_data'] = final_output.getvalue()
+            st.session_state['excel_data'] = output.getvalue()
 
             # --- SELESAI (100%) ---
             progress_bar.progress(100, text="Processing Selesai! (100%)")
