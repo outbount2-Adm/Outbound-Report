@@ -19,7 +19,7 @@ st.set_page_config(
 current_date = datetime.datetime.now().strftime("%B %d, %Y")
 
 # ==========================================
-# 2. CSS KUSTOM UNTUK DESAIN EXACT MATCH
+# 2. CSS KUSTOM UNTUK DESAIN EXACT MATCH & TOMBOL BIRU
 # ==========================================
 custom_css = """
 <style>
@@ -79,8 +79,8 @@ custom_css = """
         padding: 20px !important;
     }
 
-    /* Tombol Utama (DATA PROCESSING - Warna Biru) */
-    .stButton > button[type="primary"] {
+    /* Memaksa Tombol Utama (Data Processing) Menjadi Warna Biru */
+    button[data-testid="baseButton-primary"], .stButton > button[type="primary"] {
         background-color: #2563eb !important;
         color: white !important;
         border: none !important;
@@ -90,8 +90,9 @@ custom_css = """
         padding: 14px 24px !important;
         transition: background-color 0.3s ease;
     }
-    .stButton > button[type="primary"]:hover {
+    button[data-testid="baseButton-primary"]:hover, .stButton > button[type="primary"]:hover {
         background-color: #1d4ed8 !important;
+        color: white !important;
     }
 
     /* Tombol Sekunder (Clear Data & Submit Admin) */
