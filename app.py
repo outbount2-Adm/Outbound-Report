@@ -44,13 +44,20 @@ if submit_admin:
 current_admin = st.session_state['saved_admin']
 
 # ==========================================
+# INISIALISASI UPLOADER KEY (UNTUK FITUR CLEAR DATA)
+# ==========================================
+if 'uploader_key' not in st.session_state:
+    st.session_state['uploader_key'] = 0
+
+# ==========================================
 # FITUR UPLOAD MASSAL
 # ==========================================
 st.subheader("Upload Data Sumber")
 uploaded_files = st.file_uploader(
     "Upload file sumber (.xlsx / .csv) sekaligus di sini (termasuk Master.xlsx):", 
     accept_multiple_files=True, 
-    type=['xlsx', 'csv']
+    type=['xlsx', 'csv'],
+    key=f"file_uploader_{st.session_state['uploader_key']}"
 )
 
 if uploaded_files:
@@ -60,8 +67,9 @@ if uploaded_files:
     with col_btn2:
         btn_clear = st.button("Clear Data", use_container_width=True)
 
-    # Aksi tombol Clear Data (Membersihkan state dan mulai ulang)
+    # Aksi tombol Clear Data (Merubah key uploader agar file terhapus bersih & mereload halaman)
     if btn_clear:
+        st.session_state['uploader_key'] += 1
         st.rerun()
 
     # Aksi tombol Generated Data
