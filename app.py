@@ -459,7 +459,7 @@ if execute_clicked:
                 
                 raw_ho = df_ho[ho_col_map['Waktu_HO']].apply(fix_ho_date)
                 parsed_ho = pd.to_datetime(raw_ho, errors='coerce', dayfirst=True)
-                res['Handover Date'] = parsed_ho.dt.strftime('%m/%d/%Y %H:%M:%S')
+                res['Handover Date'] = parsed_ho.dt.strftime('%d/%m/%Y %H:%M:%S')
                 res['Handover_Date_Raw'] = parsed_ho
             else:
                 res['Handover Date'] = np.nan
