@@ -649,12 +649,15 @@ if execute_clicked:
 
             st.session_state['processed_result'] = final_df
 
-            # Export Excel (Hanya sheet Laporan_WMS)
+            # Export Excel (Laporan_WMS & DB)
             output = BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                # ==========================================
+                # 1. SHEET UTAMA: Laporan_WMS
+                # ==========================================
                 final_df.to_excel(writer, index=False, sheet_name='Laporan_WMS')
                 workbook = writer.book
-                worksheet = writer.sheets['Laporan_WMS']
+                worksheet_wms = writer.sheets['Laporan_WMS']
                 format_header = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1})
                 
                 col_idx_track = list(final_df.columns).index('Tracking#/PRO#')
@@ -665,25 +668,76 @@ if execute_clicked:
                     val_plat = str(final_df.iloc[row_num]['PlatformOrder'])
                     
                     if val_track != 'nan' and val_track != '':
-                        worksheet.write_string(row_num + 1, col_idx_track, val_track)
+                        worksheet_wms.write_string(row_num + 1, col_idx_track, val_track)
                     if val_plat != 'nan' and val_plat != '':
-                        worksheet.write_string(row_num + 1, col_idx_plat, val_plat)
+                        worksheet_wms.write_string(row_num + 1, col_idx_plat, val_plat)
 
                 for col_num, value in enumerate(final_df.columns.values):
-                    worksheet.write(0, col_num, value, format_header)
-                    worksheet.set_column(col_num, col_num, 16)
+                    worksheet_wms.write(0, col_num, value, format_header)
+                    worksheet_wms.set_column(col_num, col_num, 16)
+
+                # ==========================================
+                # 2. SHEET BARU: DB (DASHBOARD SUMMARY)
+                # ==========================================
+                worksheet_db = workbook.add_worksheet('DB')
+                
+                # Setup Format Tabel
+                header_format_db = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1, 'align': 'center'})
+                cell_format_db = workbook.add_format({'border': 1, 'align': 'center'})
+                cell_format_left = workbook.add_format({'border': 1, 'align': 'left'})
+                black_divider = workbook.add_format({'bg_color': '#000000'}) # Untuk kolom pemisah warna hitam
+                
+                # --- A. Data Agregasi Brand ---
+                df_brand = final_df['Brand'].value_counts().reset_index()
+                df_brand.columns = ['Brand', 'Delivered']
+                df_brand.insert(0, 'No', range(1, len(df_brand) + 1))
+                df_brand['Target'] = 0 # Silakan ganti dengan logika lookup target Anda jika ada
+                
+                # --- B. Data Agregasi Kurir ---
+                df_kurir = final_df['Kurir'].value_counts().reset_index()
+                df_kurir.columns = ['Courier_Name', 'Total_Package']
+                df_kurir.insert(0, 'No', range(1, len(df_kurir) + 1))
+                df_kurir['Ranking'] = range(1, len(df_kurir) + 1)
+                
+                # --- C. Data Status Manifest ---
+                df_status = final_df['Status Manifest'].replace('', 'Unknown').value_counts().reset_index()
+                df_status.columns = ['Status_Manifest', 'qty']
+                df_status.insert(0, 'No', range(1, len(df_status) + 1))
+                
+                # Fungsi Bantuan untuk Menulis Dataframe ke Koordinat Bebas
+                def write_custom_table(df_table, start_row, start_col):
+                    for c_idx, col_name in enumerate(df_table.columns):
+                        worksheet_db.write(start_row, start_col + c_idx, col_name, header_format_db)
+                    for r_idx, row in enumerate(df_table.values):
+                        for c_idx, val in enumerate(row):
+                            fmt = cell_format_left if isinstance(val, str) else cell_format_db
+                            worksheet_db.write(start_row + r_idx + 1, start_col + c_idx, val, fmt)
+
+                # Menulis Tabel ke posisi spesifik (Baris ke-2, sesuai gambar)
+                write_custom_table(df_brand, 1, 5)   # Tulis tabel Brand di Kolom F (Index 5)
+                write_custom_table(df_kurir, 1, 11)  # Tulis tabel Kurir di Kolom L (Index 11)
+                write_custom_table(df_status, 1, 20) # Tulis tabel Status di Kolom U (Index 20)
+                
+                # Mewarnai Kolom Pemisah (Divider) menjadi Hitam
+                worksheet_db.set_column('E:E', 2, black_divider)
+                worksheet_db.set_column('K:K', 2, black_divider)
+                worksheet_db.set_column('Q:Q', 2, black_divider)
+                worksheet_db.set_column('T:T', 2, black_divider)
+                
+                # Merapikan Lebar Kolom Data
+                worksheet_db.set_column('F:F', 5)
+                worksheet_db.set_column('G:G', 18)
+                worksheet_db.set_column('H:I', 12)
+                
+                worksheet_db.set_column('L:L', 5)
+                worksheet_db.set_column('M:M', 25)
+                worksheet_db.set_column('N:O', 15)
+                
+                worksheet_db.set_column('U:U', 5)
+                worksheet_db.set_column('V:V', 15)
+                worksheet_db.set_column('W:W', 10)
 
             st.session_state['excel_data'] = output.getvalue()
-
-            # --- SELESAI (100%) ---
-            progress_bar.progress(100, text="Processing Selesai! (100%)")
-            progress_bar.empty()
-
-        except Exception as e:
-            st.error(f"❌ Terjadi kesalahan Sistem: {e}")
-            st.code(traceback.format_exc())
-    else:
-        st.warning("Silakan unggah file sumber terlebih dahulu di area Data Center.")
 
 # --- TAMPILAN PREVIEW & DOWNLOAD (MENETAP DI SESSION STATE) ---
 if 'processed_result' in st.session_state:
