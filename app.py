@@ -454,12 +454,17 @@ if execute_clicked:
                 def fix_ho_date(val):
                     if pd.isna(val): return val
                     if isinstance(val, datetime.datetime):
-                        return f"{val.month:02d}/{val.day:02d}/{val.year} {val.hour:02d}:{val.minute:02d}:{val.second:02d}"
+                        # PERBAIKAN 1: Gunakan urutan YYYY-MM-DD secara standar
+                        return f"{val.year}-{val.month:02d}-{val.day:02d} {val.hour:02d}:{val.minute:02d}:{val.second:02d}"
                     return str(val)
                 
                 raw_ho = df_ho[ho_col_map['Waktu_HO']].apply(fix_ho_date)
-                parsed_ho = pd.to_datetime(raw_ho, errors='coerce', dayfirst=True)
-                res['Handover Date'] = parsed_ho.dt.strftime('%Y/%M/%D %H:%M:%S')
+                
+                # PERBAIKAN 2: Hapus dayfirst=True karena formatnya string sudah standar internasional (YYYY-MM-DD)
+                parsed_ho = pd.to_datetime(raw_ho, errors='coerce')
+                
+                # PERBAIKAN 3: Gunakan %m untuk Bulan dan %d untuk Hari
+                res['Handover Date'] = parsed_ho.dt.strftime('%Y-%m-%d %H:%M:%S')
                 res['Handover_Date_Raw'] = parsed_ho
             else:
                 res['Handover Date'] = np.nan
