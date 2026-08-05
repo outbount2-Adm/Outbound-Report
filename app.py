@@ -454,16 +454,11 @@ if execute_clicked:
                 def fix_ho_date(val):
                     if pd.isna(val): return val
                     if isinstance(val, datetime.datetime):
-                        # PERBAIKAN 1: Gunakan urutan YYYY-MM-DD secara standar
                         return f"{val.year}-{val.month:02d}-{val.day:02d} {val.hour:02d}:{val.minute:02d}:{val.second:02d}"
                     return str(val)
                 
                 raw_ho = df_ho[ho_col_map['Waktu_HO']].apply(fix_ho_date)
-                
-                # PERBAIKAN 2: Hapus dayfirst=True karena formatnya string sudah standar internasional (YYYY-MM-DD)
                 parsed_ho = pd.to_datetime(raw_ho, errors='coerce')
-                
-                # PERBAIKAN 3: Gunakan %m untuk Bulan dan %d untuk Hari
                 res['Handover Date'] = parsed_ho.dt.strftime('%Y-%m-%d %H:%M:%S')
                 res['Handover_Date_Raw'] = parsed_ho
             else:
@@ -685,13 +680,13 @@ if execute_clicked:
                 header_format_db = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1, 'align': 'center'})
                 cell_format_db = workbook.add_format({'border': 1, 'align': 'center'})
                 cell_format_left = workbook.add_format({'border': 1, 'align': 'left'})
-                black_divider = workbook.add_format({'bg_color': '#000000'}) # Untuk kolom pemisah warna hitam
+                black_divider = workbook.add_format({'bg_color': '#000000'})
                 
                 # --- A. Data Agregasi Brand ---
                 df_brand = final_df['Brand'].value_counts().reset_index()
                 df_brand.columns = ['Brand', 'Delivered']
                 df_brand.insert(0, 'No', range(1, len(df_brand) + 1))
-                df_brand['Target'] = 0 # Silakan ganti dengan logika lookup target Anda jika ada
+                df_brand['Target'] = 0 
                 
                 # --- B. Data Agregasi Kurir ---
                 df_kurir = final_df['Kurir'].value_counts().reset_index()
@@ -704,7 +699,6 @@ if execute_clicked:
                 df_status.columns = ['Status_Manifest', 'qty']
                 df_status.insert(0, 'No', range(1, len(df_status) + 1))
                 
-                # Fungsi Bantuan untuk Menulis Dataframe ke Koordinat Bebas
                 def write_custom_table(df_table, start_row, start_col):
                     for c_idx, col_name in enumerate(df_table.columns):
                         worksheet_db.write(start_row, start_col + c_idx, col_name, header_format_db)
@@ -713,18 +707,15 @@ if execute_clicked:
                             fmt = cell_format_left if isinstance(val, str) else cell_format_db
                             worksheet_db.write(start_row + r_idx + 1, start_col + c_idx, val, fmt)
 
-                # Menulis Tabel ke posisi spesifik (Baris ke-2, sesuai gambar)
-                write_custom_table(df_brand, 1, 5)   # Tulis tabel Brand di Kolom F (Index 5)
-                write_custom_table(df_kurir, 1, 11)  # Tulis tabel Kurir di Kolom L (Index 11)
-                write_custom_table(df_status, 1, 20) # Tulis tabel Status di Kolom U (Index 20)
+                write_custom_table(df_brand, 1, 5)   
+                write_custom_table(df_kurir, 1, 11)  
+                write_custom_table(df_status, 1, 20) 
                 
-                # Mewarnai Kolom Pemisah (Divider) menjadi Hitam
                 worksheet_db.set_column('E:E', 2, black_divider)
                 worksheet_db.set_column('K:K', 2, black_divider)
                 worksheet_db.set_column('Q:Q', 2, black_divider)
                 worksheet_db.set_column('T:T', 2, black_divider)
                 
-                # Merapikan Lebar Kolom Data
                 worksheet_db.set_column('F:F', 5)
                 worksheet_db.set_column('G:G', 18)
                 worksheet_db.set_column('H:I', 12)
@@ -739,7 +730,19 @@ if execute_clicked:
 
             st.session_state['excel_data'] = output.getvalue()
 
-# --- TAMPILAN PREVIEW & DOWNLOAD (MENETAP DI SESSION STATE) ---
+            # --- SELESAI (100%) ---
+            progress_bar.progress(100, text="Processing Selesai! (100%)")
+            progress_bar.empty()
+
+        except Exception as e:
+            st.error(f"❌ Terjadi kesalahan Sistem: {e}")
+            st.code(traceback.format_exc())
+    else:
+        st.warning("Silakan unggah file sumber terlebih dahulu di area Data Center.")
+
+# ==========================================
+# --- TAMPILAN PREVIEW & DOWNLOAD ---
+# ==========================================
 if 'processed_result' in st.session_state:
     st.success(f"✅ Berhasil memproses total {len(st.session_state['processed_result'])} baris data!")
     st.dataframe(st.session_state['processed_result'], use_container_width=True)
