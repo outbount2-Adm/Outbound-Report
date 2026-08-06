@@ -15,7 +15,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Mendapatkan tanggal hari ini
 current_date = datetime.datetime.now().strftime("%B %d, %Y")
 
 # ==========================================
@@ -23,24 +22,15 @@ current_date = datetime.datetime.now().strftime("%B %d, %Y")
 # ==========================================
 custom_css = """
 <style>
-    /* Mengubah background utama menjadi putih bersih */
-    .stApp {
-        background-color: #FFFFFF;
-    }
-    
-    /* Menyembunyikan elemen bawaan Streamlit secara total */
+    .stApp { background-color: #FFFFFF; }
     #MainMenu, footer, header, .stDeployButton, [data-testid="viewerBadge"] {
         visibility: hidden !important; 
         display: none !important;
     }
-
-    /* Mengurangi jarak padding atas bawaan Streamlit */
     .block-container {
         padding-top: 2rem !important;
         max-width: 1200px;
     }
-
-    /* Styling Typografi Header & Subheader */
     h1 {
         color: #0f172a;
         font-weight: 900;
@@ -57,8 +47,6 @@ custom_css = """
         margin-top: 1rem;
         margin-bottom: 0.5rem;
     }
-
-    /* Teks Info Officer & Date */
     .meta-text {
         color: #64748b;
         font-size: 15px;
@@ -66,20 +54,13 @@ custom_css = """
         margin-bottom: 20px;
         text-align: left !important;
     }
-    .officer-name {
-        color: #2563eb;
-        font-weight: bold;
-    }
-
-    /* Kotak File Uploader (Dashed Blue Border) */
+    .officer-name { color: #2563eb; font-weight: bold; }
     [data-testid="stFileUploader"] {
         background-color: #f8fafc !important;
         border: 1.5px dashed #3b82f6 !important;
         border-radius: 8px !important;
         padding: 20px !important;
     }
-
-    /* Tombol Utama (Data processing) -> Warna Biru */
     div[data-testid="stButton"] > button[kind="primary"],
     button[data-testid="baseButton-primary"], 
     .stButton > button[type="primary"] {
@@ -93,15 +74,12 @@ custom_css = """
         padding: 14px 24px !important;
         transition: background-color 0.3s ease;
     }
-    
     div[data-testid="stButton"] > button[kind="primary"]:hover,
     button[data-testid="baseButton-primary"]:hover, 
     .stButton > button[type="primary"]:hover {
         background-color: #1d4ed8 !important;
         color: white !important;
     }
-
-    /* Tombol Standar/Polos (Submit Admin & Clear Data) */
     div[data-testid="stButton"] > button:not([kind="primary"]):not([type="primary"]) {
         background-color: #ffffff !important;
         color: #334155 !important;
@@ -111,7 +89,6 @@ custom_css = """
         padding: 10px 16px !important;
         transition: background-color 0.2s ease, border-color 0.2s ease;
     }
-    
     div[data-testid="stButton"] > button:not([kind="primary"]):not([type="primary"]):hover {
         background-color: #f8fafc !important;
         border-color: #94a3b8 !important;
@@ -149,7 +126,6 @@ if submit_admin:
     st.rerun()
 
 current_admin = st.session_state['saved_admin']
-
 st.divider()
 
 # ==========================================
@@ -186,7 +162,6 @@ st.write("")
 # 5. PROCESSING QUEUE (EXECUTE SECTION)
 # ==========================================
 st.markdown('<h3>⚙️ Processing Queue</h3>', unsafe_allow_html=True)
-
 execute_clicked = st.button("🚀 Data processing", type="primary", use_container_width=True)
 
 if execute_clicked:
@@ -374,6 +349,9 @@ if execute_clicked:
             res['Brand'] = np.where(brand_is_na & is_platform_other, "SK", np.where(brand_is_na, "AceKid", res['Brand']))
             res['Brand 2'] = np.where(brand2_is_na & is_platform_other, "SK", np.where(brand2_is_na, "AceKid", res['Brand 2']))
 
+            # Konsisten Format Kolom Platform & Brand 2
+            res['Platform & Brand 2'] = res['Platform'].fillna('').astype(str).str.strip() + " & " + res['Brand 2'].fillna('').astype(str).str.strip()
+
             res['Admin'] = current_admin
 
             # --- TAHAP 3: Kalkulasi Waktu & SLA (70%) ---
@@ -554,7 +532,7 @@ if execute_clicked:
             else:
                 res['Status'] = np.nan; res['total order amount'] = np.nan; res['Payment Menthood'] = 'Non COD'
 
-            # MENGISI KOLOM STATUS YANG KOSONG MENJADI "Other" SESUAI PERMINTAAN
+            # Mengisi kolom status yang kosong menjadi "Other" sesuai instruksi
             res['Status'] = res['Status'].apply(lambda x: 'Other' if pd.isna(x) or str(x).strip() in ['', 'nan', 'None'] else x)
 
             col_attach = ho_col_map.get('Attachment', None)
@@ -629,7 +607,7 @@ if execute_clicked:
             progress_bar.progress(90, text="Processing... (Menyusun laporan akhir & Excel) [90%]")
             kolom_final = [
                 'WMS Order', 'ERP Document Number', 'Tracking#/PRO#', 'PlatformOrder', 'Staged User', 
-                'Platform', 'Brand', 'Brand 2', 'Admin', 'Load', 'Kurir', 'Loader', 'Tanggal Handover', 
+                'Platform', 'Brand', 'Brand 2', 'Platform & Brand 2', 'Admin', 'Load', 'Kurir', 'Loader', 'Tanggal Handover', 
                 'Wave ID', 'Created Time', 'Ordered Date', 'Picking Task Created Time', 
                 'pickCompletedTime - Released Date Pack', 'Packing Complete', 'Shipped Date', 'Handover Date', 
                 'End Ship Date', 'Packing to Shipped Date', 'Packing to Handover', 'Shipped Date to Handover', 
@@ -682,7 +660,6 @@ if execute_clicked:
                 # ==========================================
                 worksheet_db = workbook.add_worksheet('DB')
                 
-                # Setup Format Tabel
                 header_format_db = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1, 'align': 'center'})
                 cell_format_db = workbook.add_format({'border': 1, 'align': 'center'})
                 cell_format_left = workbook.add_format({'border': 1, 'align': 'left'})
@@ -706,7 +683,7 @@ if execute_clicked:
                 df_status.columns = ['Status_Manifest', 'qty']
                 df_status.insert(0, 'No', range(1, len(df_status) + 1))
 
-                # --- D. KALKULASI METRIC SUMMARY (PERBAIKAN MAPPING EXTREMELY ROBUST) ---
+                # --- D. KALKULASI METRIC SUMMARY (PENYESUAIAN TOTAL QTY) ---
                 
                 # 1. Target (Count unique Ref# dari file Order Summary Export OPEN)
                 df_os_open = dfs.get('order_summary_open', dfs.get('order_summary', pd.DataFrame()))
@@ -716,7 +693,7 @@ if execute_clicked:
                 val_delivered = len(final_df)
                 val_delivery_rate = round((val_delivered / val_target * 100), 2) if val_target > 0 else 0.0
 
-                # 2. Pending Order (Summary Kolom H / Index 7 di file Daily HO secara aman)
+                # 2. pending_order (Total Qty dari kolom H di file Daily HO)
                 val_pending = 0
                 if dfs['ho_outbound'].shape[1] >= 8:
                     try:
@@ -741,7 +718,7 @@ if execute_clicked:
                 val_avg_shipped = get_avg_time_str(final_df['Packing to Shipped Date']) if 'Packing to Shipped Date' in final_df.columns else "0:00:00"
                 val_avg_handover = get_avg_time_str(final_df['Shipped Date to Handover']) if 'Shipped Date to Handover' in final_df.columns else "0:00:00"
 
-                # 4. Kurir Instan (Total Kolom F dari baris yang Kolom B mengandung teks instan/sameday/paxel)
+                # 4. kurir_instan (Total Qty dari kolom F berdasarkan list kurir spesifik di kolom B)
                 val_kurir_instan = 0
                 if dfs['ho_outbound'].shape[1] >= 6:
                     try:
@@ -762,10 +739,8 @@ if execute_clicked:
                         val_kurir_instan = int(pd.to_numeric(col_f_val[mask_match].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0).sum())
                     except: pass
                 
-                # 5. Lookup Kategori dari File Master (Platform & Brand 2 -> Category)
+                # 5. Lookup Kategori Master untuk jc_enabler, jc_fulfilment, dan other
                 master_df = dfs.get('master', pd.DataFrame())
-                
-                # Membuat helper mapping fleksibel untuk Platform & Brand 2
                 master_cat_dict = {}
                 if not master_df.empty:
                     m_plat_col = next((c for c in master_df.columns if 'platform' in c.lower()), None)
@@ -780,7 +755,6 @@ if execute_clicked:
                             if p_val and b2_val and pd.notna(row[m_cat_col]):
                                 master_cat_dict[(p_val, b2_val)] = cat_val
 
-                # Mapping nilai ke Laporan WMS
                 def get_master_category(row):
                     p = str(row.get('Platform', '')).strip().lower()
                     b2 = str(row.get('Brand 2', '')).strip().lower()
@@ -826,7 +800,6 @@ if execute_clicked:
                 ]
                 df_metrics = pd.DataFrame(metrics_data, columns=["No", "Metric_Name", "Value", "Description"])
                 
-                # Fungsi Helper Penulisan Tabel
                 def write_custom_table(df_table, start_row, start_col):
                     for c_idx, col_name in enumerate(df_table.columns):
                         worksheet_db.write(start_row, start_col + c_idx, col_name, header_format_db)
@@ -835,25 +808,21 @@ if execute_clicked:
                             fmt = cell_format_left if isinstance(val, str) else cell_format_db
                             worksheet_db.write(start_row + r_idx + 1, start_col + c_idx, val, fmt)
 
-                # Menulis semua tabel ke worksheet DB
-                write_custom_table(df_metrics, 1, 0)  # Kolom A - D
-                write_custom_table(df_brand, 1, 5)    # Kolom F - I
-                write_custom_table(df_kurir, 1, 11)   # Kolom L - O
-                write_custom_table(df_status, 1, 20)  # Kolom U - W
+                write_custom_table(df_metrics, 1, 0)  
+                write_custom_table(df_brand, 1, 5)    
+                write_custom_table(df_kurir, 1, 11)   
+                write_custom_table(df_status, 1, 20)  
                 
-                # Pembatas Hitam
                 worksheet_db.set_column('E:E', 2, black_divider)
                 worksheet_db.set_column('K:K', 2, black_divider)
                 worksheet_db.set_column('Q:Q', 2, black_divider)
                 worksheet_db.set_column('T:T', 2, black_divider)
                 
-                # Lebar Kolom Metrics Summary
                 worksheet_db.set_column('A:A', 5)
                 worksheet_db.set_column('B:B', 18)
                 worksheet_db.set_column('C:C', 12)
                 worksheet_db.set_column('D:D', 30)
 
-                # Lebar Kolom Brand, Kurir, Status
                 worksheet_db.set_column('F:F', 5)
                 worksheet_db.set_column('G:G', 18)
                 worksheet_db.set_column('H:I', 12)
@@ -867,8 +836,6 @@ if execute_clicked:
                 worksheet_db.set_column('W:W', 10)
 
             st.session_state['excel_data'] = output.getvalue()
-
-            # --- SELESAI (100%) ---
             progress_bar.progress(100, text="Processing Selesai! (100%)")
             progress_bar.empty()
 
