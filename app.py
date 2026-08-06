@@ -173,6 +173,7 @@ if execute_clicked:
             dfs = {}
             master_store_db = {}
             master_carrier_db = {}
+            master_category_map = {}
             
             for file in uploaded_files:
                 file_name = file.name.lower()
@@ -201,6 +202,19 @@ if execute_clicked:
                             cc = str(row['carrierCode']).strip()
                             kur = str(row['Kurir']).strip() if pd.notna(row['Kurir']) else ""
                             master_carrier_db[cc] = kur
+
+                    # Mapping Platform + Brand 2 -> Category dari File Master
+                    m_plat_col = next((c for c in df.columns if c.lower().strip() == 'platform'), None)
+                    m_b2_col = next((c for c in df.columns if 'brand' in c.lower() and ('2' in c or 'brand2' in c.lower())), None)
+                    m_cat_col = next((c for c in df.columns if 'category' in c.lower()), None)
+                    
+                    if m_plat_col and m_b2_col and m_cat_col:
+                        for _, row in df.iterrows():
+                            p_v = str(row[m_plat_col]).strip().upper() if pd.notna(row[m_plat_col]) else ""
+                            b_v = str(row[m_b2_col]).strip().upper() if pd.notna(row[m_b2_col]) else ""
+                            c_v = str(row[m_cat_col]).strip() if pd.notna(row[m_cat_col]) else ""
+                            if p_v and b_v:
+                                master_category_map[(p_v, b_v)] = c_v
                 
                 elif 'ho' in file_name or 'outbound' in file_name or 'daily' in file_name: 
                     rename_map = {}
@@ -672,7 +686,7 @@ if execute_clicked:
                 df_status.columns = ['Status_Manifest', 'qty']
                 df_status.insert(0, 'No', range(1, len(df_status) + 1))
 
-                # --- KALKULASI METRIC SUMMARY (EXACT MASTER LOOKUP & COUNTIF) ---
+                # --- KALKULASI METRIC SUMMARY ---
                 df_os_open = dfs.get('order_summary_open', dfs.get('order_summary', pd.DataFrame()))
                 col_ref_sum = next((c for c in df_os_open.columns if 'ref#' in c.lower()), None)
                 val_target = df_os_open[col_ref_sum].astype(str).str.strip().replace('', np.nan).replace('nan', np.nan).dropna().nunique() if col_ref_sum else 0
@@ -681,12 +695,12 @@ if execute_clicked:
                 val_delivery_rate = round((val_delivered / val_target * 100), 2) if val_target > 0 else 0.0
 
                 raw_ho_df = dfs['ho_outbound']
+                
+                # 1. PERBAIKAN pending_order: total qty pada kolom "Pending Cut Off Qty"
                 val_pending = 0
-                if raw_ho_df.shape[1] >= 8:
-                    try:
-                        col_h_raw = raw_ho_df.iloc[:, 7]
-                        val_pending = int(pd.to_numeric(col_h_raw.astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0).sum())
-                    except: pass
+                col_pending_cutoff = next((c for c in raw_ho_df.columns if 'pending cut off' in c.lower() or 'pending cutoff' in c.lower() or ('pending' in c.lower() and 'qty' in c.lower())), None)
+                if col_pending_cutoff:
+                    val_pending = int(pd.to_numeric(raw_ho_df[col_pending_cutoff].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0).sum())
 
                 def get_avg_time_str(series_hhmmss):
                     if series_hhmmss is None or series_hhmmss.empty:
@@ -704,53 +718,59 @@ if execute_clicked:
                 val_avg_shipped = get_avg_time_str(final_df['Packing to Shipped Date']) if 'Packing to Shipped Date' in final_df.columns else "0:00:00"
                 val_avg_handover = get_avg_time_str(final_df['Shipped Date to Handover']) if 'Shipped Date to Handover' in final_df.columns else "0:00:00"
 
+                # 2. PERBAIKAN kurir_instan: total qty kolom "Deliveree Qty" berdasarkan kriteria kurir instan
                 val_kurir_instan = 0
-                if raw_ho_df.shape[1] >= 6:
-                    try:
-                        col_b_str = raw_ho_df.iloc[:, 1].astype(str).str.lower().str.replace(r'\s+', ' ', regex=True).str.strip()
-                        col_f_val = raw_ho_df.iloc[:, 5]
-                        target_kurir_keywords = ["instant", "sameday", "paxel"]
-                        mask_match = col_b_str.apply(lambda x: any(k in x for k in target_kurir_keywords))
-                        val_kurir_instan = int(pd.to_numeric(col_f_val[mask_match].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0).sum())
-                    except: pass
+                col_deliveree_qty = next((c for c in raw_ho_df.columns if 'deliveree' in c.lower()), None)
+                col_expedisi_ho = next((c for c in raw_ho_df.columns if 'expedisi' in c.lower() or 'kurir' in c.lower() or 'carrier' in c.lower()), None)
                 
-                # --- LOOKUP KATEGORI MASTER (MENGGUNAKAN PLATFORM & BRAND 2 SESUAI GAMBAR) ---
-                master_df = dfs.get('master', pd.DataFrame())
-                master_cat_dict = {}
-                if not master_df.empty:
-                    m_plat = next((c for c in master_df.columns if 'platform' in c.lower() and 'brand' not in c.lower()), None)
-                    m_b2 = next((c for c in master_df.columns if 'brand' in c.lower() and ('2' in c or 'brand2' in c.lower())), None)
-                    m_cat_col = next((c for c in master_df.columns if 'category' in c.lower()), None)
+                if not col_expedisi_ho and raw_ho_df.shape[1] >= 2:
+                    col_expedisi_ho = raw_ho_df.columns[1]
+                if not col_deliveree_qty and raw_ho_df.shape[1] >= 6:
+                    col_deliveree_qty = raw_ho_df.columns[5]
+
+                if col_expedisi_ho and col_deliveree_qty:
+                    target_couriers = [
+                        "anteraja sameday (rit 1)", "anteraja sameday (rit 2)", "anteraja sameday (rit 3)",
+                        "go-jek/grab/shopee instant",
+                        "paxel ( rit 1 )", "paxel ( rit 2 )", "paxel ( rit 3 )",
+                        "paxel (rit 1)", "paxel (rit 2)", "paxel (rit 3)"
+                    ]
                     
-                    if m_plat and m_b2 and m_cat_col:
-                        for _, row in master_df.iterrows():
-                            p_v = str(row[m_plat]).strip().lower()
-                            b_v = str(row[m_b2]).strip().lower()
-                            cat_val = str(row[m_cat_col]).strip()
-                            combined_key = f"{p_v} & {b_v}"
-                            master_cat_dict[combined_key] = cat_val
-                    else:
-                        m_pb2_col = next((c for c in master_df.columns if 'platform & brand 2' in c.lower() or 'platform & brand2' in c.lower()), None)
-                        if m_pb2_col and m_cat_col:
-                            for _, row in master_df.iterrows():
-                                pb2_val = str(row[m_pb2_col]).strip().lower()
-                                cat_val = str(row[m_cat_col]).strip()
-                                if pb2_val and pd.notna(row[m_cat_col]):
-                                    master_cat_dict[pb2_val] = cat_val
+                    courier_series = raw_ho_df[col_expedisi_ho].astype(str).str.strip().str.lower()
+                    qty_series = pd.to_numeric(raw_ho_df[col_deliveree_qty].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0)
+                    
+                    mask_match = courier_series.isin(target_couriers)
+                    val_kurir_instan = int(qty_series[mask_match].sum())
 
-                def get_master_category_exact(row):
-                    pb2_target = str(row.get('Platform & Brand 2', '')).strip().lower()
-                    return master_cat_dict.get(pb2_target, 'Other')
+                # 3. PERBAIKAN LOOKUP KATEGORI MASTER (Platform + Brand 2)
+                def lookup_category_from_master(row):
+                    p_val = str(row.get('Platform', '')).strip().upper()
+                    b2_val = str(row.get('Brand 2', '')).strip().upper()
+                    
+                    if (p_val, b2_val) in master_category_map:
+                        return master_category_map[(p_val, b2_val)]
+                    return "Other"
 
-                final_df['Master_Category'] = final_df.apply(get_master_category_exact, axis=1)
+                final_df['Master_Category'] = final_df.apply(lookup_category_from_master, axis=1)
 
-                # --- HITUNG METRIK KATEGORI BERDASARKAN HASIL LOOKUP MASTER ---
                 cat_clean = final_df['Master_Category'].astype(str).str.strip().str.lower()
 
                 val_jc_enabler = int(cat_clean.eq('jet commerce enabler').sum())
-                val_jc_fulfilment = int(cat_clean.isin(['jet commerce fullfilment center', 'jet commerce fulfillment center']).sum())
-                val_other = int((~cat_clean.isin(['jet commerce enabler', 'jet commerce fullfilment center', 'jet commerce fulfillment center'])).sum())
+                val_jc_fulfilment = int(cat_clean.isin([
+                    'jet commerce fullfilment center', 
+                    'jet commerce fulfillment center',
+                    'jet commerce fullfilment',
+                    'jet commerce fulfillment'
+                ]).sum())
+                val_other = int((~cat_clean.isin([
+                    'jet commerce enabler', 
+                    'jet commerce fullfilment center', 
+                    'jet commerce fulfillment center',
+                    'jet commerce fullfilment',
+                    'jet commerce fulfillment'
+                ])).sum())
 
+                master_df = dfs.get('master', pd.DataFrame())
                 master_status_col = next((c for c in master_df.columns if 'online status' in c.lower() or c.lower() == 'status'), None)
                 master_track_col = next((c for c in master_df.columns if 'tracking' in c.lower()), None)
                 
@@ -771,10 +791,10 @@ if execute_clicked:
                     [1, "delivery_rate", val_delivery_rate, "Persentase delivery rate"],
                     [2, "delivered", f"{val_delivered:,}", "Total order di sheet Laporan_WMS"],
                     [3, "target", f"{val_target:,}", "Count unique Ref# dari file Order Summary Export OPEN"],
-                    [4, "pending_order", f"{val_pending:,}", "Summary kolom H di file Daily HO"],
+                    [4, "pending_order", f"{val_pending:,}", "Total qty di kolom Pending Cut Off Qty file Daily HO"],
                     [5, "avg_shipped", val_avg_shipped, "AVG Laporan_WMS Packing to Shipped Date"],
                     [6, "avg_handover", val_avg_handover, "AVG Laporan_WMS Shipped Date to Handover"],
-                    [7, "kurir_instan", f"{val_kurir_instan:,}", "Total Kolom F berdasarkan kurir spesifik"],
+                    [7, "kurir_instan", f"{val_kurir_instan:,}", "Total Deliveree Qty kriteria kurir instan"],
                     [8, "jc_enabler", f"{val_jc_enabler:,}", "Lookup Master: Jet Commerce Enabler"],
                     [9, "jc_fulfilment", f"{val_jc_fulfilment:,}", "Lookup Master: Jet Commerce Fullfilment Center"],
                     [10, "other", f"{val_other:,}", "Lookup Master: Kategori lainnya"],
@@ -804,7 +824,7 @@ if execute_clicked:
                 worksheet_db.set_column('A:A', 5)
                 worksheet_db.set_column('B:B', 18)
                 worksheet_db.set_column('C:C', 12)
-                worksheet_db.set_column('D:D', 30)
+                worksheet_db.set_column('D:D', 35)
 
                 worksheet_db.set_column('F:F', 5)
                 worksheet_db.set_column('G:G', 18)
