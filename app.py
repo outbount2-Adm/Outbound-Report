@@ -744,9 +744,10 @@ if execute_clicked:
 
                 final_df['Master_Category'] = final_df.apply(get_master_category_exact, axis=1)
 
-                val_jc_enabler = int(final_df['Master_Category'].str.contains('enabler', na=False).sum())
-                val_jc_fulfilment = int(final_df['Master_Category'].str.contains('fulfilment|fullfilment', na=False).sum())
-                val_other = int(final_df['Master_Category'].eq('other').sum()) | int((~final_df['Master_Category'].str.contains('enabler|fulfilment|fullfilment', na=False)).sum())
+                # --- BAGIAN PERBAIKAN: PERHITUNGAN KATEGORI ENABLER, FULFILMENT, DAN OTHER ---
+                val_jc_enabler = int(final_df['Master_Category'].str.contains('enabler', case=False, na=False).sum())
+                val_jc_fulfilment = int(final_df['Master_Category'].str.contains('fulfilment|fullfilment|fulfillment|fullfillment', case=False, na=False).sum())
+                val_other = len(final_df) - (val_jc_enabler + val_jc_fulfilment)
 
                 master_status_col = next((c for c in master_df.columns if 'online status' in c.lower() or c.lower() == 'status'), None)
                 master_track_col = next((c for c in master_df.columns if 'tracking' in c.lower()), None)
