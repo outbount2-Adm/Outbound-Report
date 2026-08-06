@@ -251,24 +251,25 @@ with st.container():
                                 kur = str(row['Kurir']).strip() if pd.notna(row['Kurir']) else ""
                                 master_carrier_db[cc] = kur
 
-                        # --- PERBAIKAN XLOOKUP KATEGORI DARI MASTER ---
-                        # Mencari kolom referensi XLOOKUP yang benar ('Platform.1' & 'Brand 2')
-                        m_plat_ref = next((c for c in df.columns if c.lower().strip() in ['platform.1', 'platform']), None)
-                        m_brand_ref = next((c for c in df.columns if c.lower().strip() in ['brand 2', 'brand2']), None)
+                        # --- PERBAIKAN PEMBACAAN TABEL KATEGORI KANAN (Platform & Brand 2) ---
+                        # Mencari kolom kategori dan tabel referensi di sebelah kanan (Platform.1 / Platform & Brand 2)
                         m_cat_col = next((c for c in df.columns if any(k in c.lower() for k in ['category', 'kategori', 'segment']) and c.lower() != 'sales channel'), None)
+                        m_brand_ref = next((c for c in df.columns if any(k in c.lower() for k in ['brand 2', 'brand2'])), None)
                         
-                        if m_cat_col:
-                            # Filter baris master kategori yang valid
-                            df_cat_subset = df[[m_plat_ref, m_brand_ref, m_cat_col]].dropna(subset=[m_cat_col]) if m_plat_ref and m_brand_ref else df[[m_cat_col]]
+                        # Cari kolom Platform yang ada di tabel kanan (bisa bernama Platform.1 atau kolom Platform kedua)
+                        platform_cols = [c for c in df.columns if c.lower().strip() == 'platform' or c.lower().strip() == 'platform.1']
+                        m_plat_ref = platform_cols[-1] if len(platform_cols) > 0 else None # Ambil yang di sebelah kanan
+
+                        if m_cat_col and m_brand_ref and m_plat_ref:
+                            df_cat_subset = df[[m_plat_ref, m_brand_ref, m_cat_col]].dropna(subset=[m_cat_col])
                             for _, row in df_cat_subset.iterrows():
                                 cat_val = str(row[m_cat_col]).strip() if pd.notna(row[m_cat_col]) else "Other"
+                                p_v = str(row[m_plat_ref]).strip().upper()
+                                b_v = str(row[m_brand_ref]).strip().upper()
                                 
-                                if m_plat_ref and m_brand_ref and pd.notna(row[m_plat_ref]) and pd.notna(row[m_brand_ref]):
-                                    p_v = str(row[m_plat_ref]).strip().upper()
-                                    b_v = str(row[m_brand_ref]).strip().upper()
-                                    master_category_map[f"{p_v} & {b_v}"] = cat_val
-                                    master_category_map[f"{p_v}&{b_v}"] = cat_val
-                                    master_category_map[(p_v, b_v)] = cat_val
+                                master_category_map[f"{p_v} & {b_v}"] = cat_val
+                                master_category_map[f"{p_v}&{b_v}"] = cat_val
+                                master_category_map[(p_v, b_v)] = cat_val
 
                     elif 'daily' in file_name:
                         dfs['daily_ho'] = df
@@ -559,7 +560,7 @@ with st.container():
                 res['Packing to Shipped Date'] = format_timedelta_hhmmss(to_dt('Shipped Date') - to_dt('Packing Complete'))
                 res['Packing to Handover'] = format_timedelta_hhmmss(to_dt('Handover Date') - to_dt('Packing Complete'))
                 res['Shipped Date to Handover'] = format_timedelta_hhmmss(to_dt('Handover Date') - to_dt('Shipped Date'))
-                res['End Ship Date to Shpped Date'] = format_timedelta_hhmmss(to_dt('End Ship Date') - to_dt('Shipped Date'))
+                res['End Ship Date to Shipped Date'] = format_timedelta_hhmmss(to_dt('End Ship Date') - to_dt('Shipped Date'))
 
                 col_city = next((c for c in res.columns if 'ship to city' in c.lower()), None)
                 col_prov = next((c for c in res.columns if 'ship to st' in c.lower() or 'prov' in c.lower()), None)
@@ -667,7 +668,7 @@ with st.container():
                 res['Kurir_Akhir'] = np.nan
                 res['Late Proses By'] = np.nan
                 
-                # --- TAHAP 4: Menyusun Kolom Final (Tanpa kolom bantuan) ---
+                # --- TAHAP 4: Menyusun Kolom Final ---
                 progress_bar.progress(90, text="Processing... (Menyusun laporan akhir & Excel) [90%]")
                 kolom_final = [
                     'WMS Order', 'ERP Document Number', 'Tracking#/PRO#', 'PlatformOrder', 'Staged User', 
@@ -806,7 +807,7 @@ with st.container():
                     val_avg_shipped = get_avg_time_str(final_df['Packing to Shipped Date']) if 'Packing to Shipped Date' in final_df.columns else "0:00:00"
                     val_avg_handover = get_avg_time_str(final_df['Shipped Date to Handover']) if 'Shipped Date to Handover' in final_df.columns else "0:00:00"
 
-                    # --- XLOOKUP CATEGORY 2 KRITERIA (Platform & Brand 2) ---
+                    # --- XLOOKUP KATEGORI 2 KRITERIA (Platform & Brand 2) ---
                     def lookup_category_from_master(row):
                         p_val = str(row.get('Platform', '')).strip().upper()
                         b2_val = str(row.get('Brand 2', '')).strip().upper()
