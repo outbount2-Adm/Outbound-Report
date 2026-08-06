@@ -199,8 +199,6 @@ if execute_clicked:
             dfs = {}
             master_store_db = {}
             master_carrier_db = {}
-            master_category_db = {}
-            master_tracking_db = {}
             
             for file in uploaded_files:
                 file_name = file.name.lower()
@@ -229,27 +227,6 @@ if execute_clicked:
                             kur = str(row['Kurir']).strip() if pd.notna(row['Kurir']) else ""
                             master_carrier_db[cc] = kur
                     
-                    # Tambahan Lookup Master untuk Category (Platform & Brand 2)
-                    if 'Platform' in df.columns and 'Brand 2' in df.columns and 'Category' in df.columns:
-                        cat_df = df[['Platform', 'Brand 2', 'Category']].dropna(subset=['Platform', 'Brand 2'])
-                        for _, row in cat_df.iterrows():
-                            p = str(row['Platform']).strip().lower()
-                            b2 = str(row['Brand 2']).strip().lower()
-                            master_category_db[(p, b2)] = str(row['Category']).strip()
-                    elif 'Platform' in df.columns and 'Brand2' in df.columns and 'Category' in df.columns:
-                        cat_df = df[['Platform', 'Brand2', 'Category']].dropna(subset=['Platform', 'Brand2'])
-                        for _, row in cat_df.iterrows():
-                            p = str(row['Platform']).strip().lower()
-                            b2 = str(row['Brand2']).strip().lower()
-                            master_category_db[(p, b2)] = str(row['Category']).strip()
-
-                    # Tambahan Lookup Master untuk Tracking (Online Status)
-                    if 'Online Status' in df.columns and 'tracking' in df.columns:
-                        trk_df = df[['Online Status', 'tracking']].dropna(subset=['Online Status'])
-                        for _, row in trk_df.iterrows():
-                            os_val = str(row['Online Status']).strip().lower()
-                            master_tracking_db[os_val] = str(row['tracking']).strip()
-
                     dfs['master'] = df
                 
                 elif 'ho outbound' in file_name or 'daily ho' in file_name: 
@@ -708,9 +685,10 @@ if execute_clicked:
                 df_brand.insert(0, 'No', range(1, len(df_brand) + 1))
                 df_brand['Target'] = 0 
                 
-                # --- B. Data Agregasi Kurir ---
+                # --- B. Data Agregasi Kurir (Hanya Top 5) ---
                 df_kurir = final_df['Kurir'].value_counts().reset_index()
                 df_kurir.columns = ['Courier_Name', 'Total_Package']
+                df_kurir = df_kurir.head(5) # PERBAIKAN: Limit ranking menjadi Top 5 saja
                 df_kurir.insert(0, 'No', range(1, len(df_kurir) + 1))
                 df_kurir['Ranking'] = range(1, len(df_kurir) + 1)
                 
@@ -719,23 +697,38 @@ if execute_clicked:
                 df_status.columns = ['Status_Manifest', 'qty']
                 df_status.insert(0, 'No', range(1, len(df_status) + 1))
 
-                # --- D. KALKULASI METRIC SUMMARY TERBARU (Kolom A-D) ---
+                # --- D. KALKULASI METRIC SUMMARY (Super Aman & Akurat) ---
                 
-                # Target & Delivered
-                col_ref_sum = next((c for c in dfs['order_summary'].columns if 'ref#' in c.lower()), None)
-                val_target = dfs['order_summary'][col_ref_sum].nunique() if col_ref_sum else 0
+                # 1. Target (Aman dari Filter Error yang sebelumnya men-trigger fallback 42805)
+                df_os = dfs.get('order_summary', pd.DataFrame())
+                col_ref_sum = next((c for c in df_os.columns if 'ref#' in c.lower()), None)
+                col_status_sum = next((c for c in df_os.columns if 'status' in c.lower()), None)
+                
+                val_target = 0
+                if col_ref_sum:
+                    valid_refs = df_os[col_ref_sum].astype(str).str.strip().replace('', np.nan).replace('nan', np.nan)
+                    if col_status_sum:
+                        # Menggunakan uppercase secara keseluruhan untuk meminimalisasi salah baca spasi/huruf
+                        mask_open = df_os[col_status_sum].astype(str).str.upper().str.contains('OPEN', na=False)
+                        if mask_open.any():
+                            val_target = df_os.loc[mask_open, col_ref_sum].astype(str).str.strip().replace('', np.nan).replace('nan', np.nan).dropna().nunique()
+                        else:
+                            val_target = valid_refs.dropna().nunique()
+                    else:
+                        val_target = valid_refs.dropna().nunique()
+                
                 val_delivered = len(final_df)
-                
-                # Delivery Rate
                 val_delivery_rate = round((val_delivered / val_target * 100), 2) if val_target > 0 else 0.0
 
-                # Pending Order (Summary Kolom H dari file Daily HO)
+                # 2. Pending Order (Aman - Ambil mutlak index kolom ke-7 dari source Daily HO)
+                val_pending = 0
                 if df_ho.shape[1] >= 8:
-                    col_h_name = df_ho.columns[7]
-                    val_pending = int(pd.to_numeric(df_ho[col_h_name], errors='coerce').sum())
-                else:
-                    val_pending = 0
+                    try:
+                        val_h = df_ho.iloc[:, 7].astype(str).str.replace(',', '', regex=False)
+                        val_pending = int(pd.to_numeric(val_h, errors='coerce').fillna(0).sum())
+                    except: pass
 
+                # 3. Avg Shipped & Avg Handover
                 def get_avg_time_str(series_hhmmss):
                     if series_hhmmss is None or series_hhmmss.empty:
                         return "00:00:00"
@@ -749,40 +742,61 @@ if execute_clicked:
                         return f"{h}:{m:02d}:{s:02d}"
                     return "0:00:00"
 
-                # Avg Shipped & Avg Handover
                 val_avg_shipped = get_avg_time_str(final_df['Packing to Shipped Date']) if 'Packing to Shipped Date' in final_df.columns else "0:00:00"
                 val_avg_handover = get_avg_time_str(final_df['Shipped Date to Handover']) if 'Shipped Date to Handover' in final_df.columns else "0:00:00"
 
-                # Kurir Instan (Total Kolom F dimana Kolom B sesuai kondisi di file Daily HO)
+                # 4. Kurir Instan (Aman - Ambil index ke-1 & ke-5 dari source Daily HO)
+                val_kurir_instan = 0
                 if df_ho.shape[1] >= 6:
-                    col_b_name = df_ho.columns[1]
-                    col_f_name = df_ho.columns[5]
-                    instan_list = ["Go-Jek/Grab/Shopee Instant","AnterAja Sameday (Rit 1)","AnterAja Sameday (Rit 2)","AnterAja Sameday (Rit 3)","Paxel ( Rit 1 )","Paxel ( Rit 2 )","Paxel ( Rit 3 )"]
-                    mask_kurir = df_ho[col_b_name].astype(str).str.strip().isin(instan_list)
-                    val_kurir_instan = int(pd.to_numeric(df_ho.loc[mask_kurir, col_f_name], errors='coerce').sum())
-                else:
-                    val_kurir_instan = 0
+                    try:
+                        instan_list = ["go-jek/grab/shopee instant", "anteraja sameday (rit 1)", "anteraja sameday (rit 2)", "anteraja sameday (rit 3)", "paxel ( rit 1 )", "paxel ( rit 2 )", "paxel ( rit 3 )"]
+                        kurir_b = df_ho.iloc[:, 1].astype(str).str.strip().str.lower()
+                        mask_kurir = kurir_b.isin(instan_list)
+                        
+                        val_f = df_ho.iloc[:, 5].astype(str).str.replace(r'[^\d.-]', '', regex=True)
+                        val_kurir_instan = int(pd.to_numeric(val_f[mask_kurir], errors='coerce').fillna(0).sum())
+                    except: pass
                 
-                # Category Metrics Lookup 
+                # 5. Category (Platform & Brand 2 Mapping yang Aman)
+                cat_df = dfs.get('master', pd.DataFrame())
+                col_p = next((c for c in cat_df.columns if c.strip().lower() == 'platform'), None)
+                col_b2 = next((c for c in cat_df.columns if c.strip().lower() in ['brand 2', 'brand2']), None)
+                col_cat = next((c for c in cat_df.columns if c.strip().lower() == 'category'), None)
+                
+                cat_dict = {}
+                if col_p and col_b2 and col_cat:
+                    for _, r in cat_df.iterrows():
+                        k = (str(r[col_p]).strip().lower(), str(r[col_b2]).strip().lower())
+                        cat_dict[k] = str(r[col_cat]).strip().lower()
+                        
                 final_df['Category_Lookup'] = final_df.apply(
-                    lambda row: master_category_db.get((str(row['Platform']).strip().lower(), str(row['Brand 2']).strip().lower()), 'Unknown'), 
-                    axis=1
+                    lambda row: cat_dict.get((str(row['Platform']).strip().lower(), str(row['Brand 2']).strip().lower()), 'unknown'), axis=1
                 )
-                val_jc_enabler = int((final_df['Category_Lookup'].str.lower() == 'jet commerce enabler').sum())
-                val_jc_fulfilment = int((final_df['Category_Lookup'].str.lower() == 'jet commerce fullfilment center').sum())
-                val_other = int((final_df['Category_Lookup'].str.lower() == 'other').sum())
+                
+                val_jc_enabler = int((final_df['Category_Lookup'].str.contains('enabler', case=False, na=False)).sum())
+                val_jc_fulfilment = int((final_df['Category_Lookup'].str.contains('fulfilment|fulfillment', case=False, na=False)).sum())
+                val_other = int((final_df['Category_Lookup'].str.contains('other', case=False, na=False)).sum())
 
-                # Tracking Lookup
-                final_df['Tracking_Lookup'] = final_df['Status'].apply(
-                    lambda x: master_tracking_db.get(str(x).strip().lower(), 'Unknown')
-                )
-                val_traceable = int((final_df['Tracking_Lookup'].str.lower() == 'traceable').sum())
-                val_untraceable = int((final_df['Tracking_Lookup'].str.lower() == 'untraceable').sum())
+                # 6. Tracking Lookup (Online Status Mapping)
+                col_os = next((c for c in cat_df.columns if 'online status' in c.strip().lower()), None)
+                col_trk = next((c for c in cat_df.columns if 'tracking' in c.strip().lower()), None)
+                
+                trk_dict = {}
+                if col_os and col_trk:
+                    for _, r in cat_df.iterrows():
+                        if pd.notna(r[col_os]):
+                            trk_dict[str(r[col_os]).strip().lower()] = str(r[col_trk]).strip().lower()
+                            
+                final_df['Tracking_Lookup'] = final_df['Status'].astype(str).str.strip().str.lower().map(trk_dict)
+                
+                val_traceable = int((final_df['Tracking_Lookup'] == 'traceable').sum())
+                val_untraceable = int((final_df['Tracking_Lookup'] == 'untraceable').sum())
 
+                # Eksekusi tabel
                 metrics_data = [
                     [1, "delivery_rate", val_delivery_rate, "Persentase delivery rate"],
                     [2, "delivered", f"{val_delivered:,}", "Total order di sheet Laporan_WMS"],
-                    [3, "target", f"{val_target:,}", "Count unique Ref# dari Order Summary Export"],
+                    [3, "target", f"{val_target:,}", "Count unique Ref# khusus Order Status OPEN"],
                     [4, "pending_order", f"{val_pending:,}", "Summary kolom H di file Daily HO"],
                     [5, "avg_shipped", val_avg_shipped, "AVG Laporan_WMS Packing to Shipped Date"],
                     [6, "avg_handover", val_avg_handover, "AVG Laporan_WMS Shipped Date to Handover"],
