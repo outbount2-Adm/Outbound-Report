@@ -672,7 +672,7 @@ if execute_clicked:
                 df_status.columns = ['Status_Manifest', 'qty']
                 df_status.insert(0, 'No', range(1, len(df_status) + 1))
 
-                # --- KALKULASI METRIC SUMMARY (DIPERBAIKI) ---
+                # --- KALKULASI METRIC SUMMARY (EXACT MASTER LOOKUP & COUNTIF) ---
                 df_os_open = dfs.get('order_summary_open', dfs.get('order_summary', pd.DataFrame()))
                 col_ref_sum = next((c for c in df_os_open.columns if 'ref#' in c.lower()), None)
                 val_target = df_os_open[col_ref_sum].astype(str).str.strip().replace('', np.nan).replace('nan', np.nan).dropna().nunique() if col_ref_sum else 0
@@ -714,31 +714,39 @@ if execute_clicked:
                         val_kurir_instan = int(pd.to_numeric(col_f_val[mask_match].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0).sum())
                     except: pass
                 
+                # --- LOOKUP KATEGORI MASTER (BERDASARKAN PLATFORM & BRAND 2) ---
                 master_df = dfs.get('master', pd.DataFrame())
                 master_cat_dict = {}
                 if not master_df.empty:
-                    m_plat_col = next((c for c in master_df.columns if 'platform' in c.lower()), None)
-                    m_b2_col = next((c for c in master_df.columns if 'brand' in c.lower() and ('2' in c or 'brand2' in c.lower())), None)
+                    m_pb2_col = next((c for c in master_df.columns if 'platform & brand 2' in c.lower() or 'platform & brand2' in c.lower()), None)
                     m_cat_col = next((c for c in master_df.columns if 'category' in c.lower()), None)
                     
-                    if m_plat_col and m_b2_col and m_cat_col:
+                    if m_pb2_col and m_cat_col:
                         for _, row in master_df.iterrows():
-                            p_val = str(row[m_plat_col]).strip().lower()
-                            b2_val = str(row[m_b2_col]).strip().lower()
+                            pb2_val = str(row[m_pb2_col]).strip().lower()
                             cat_val = str(row[m_cat_col]).strip().lower()
-                            if p_val and b2_val and pd.notna(row[m_cat_col]):
-                                master_cat_dict[(p_val, b2_val)] = cat_val
+                            if pb2_val and pd.notna(row[m_cat_col]):
+                                master_cat_dict[pb2_val] = cat_val
+                    else:
+                        m_plat = next((c for c in master_df.columns if 'platform' in c.lower()), None)
+                        m_b2 = next((c for c in master_df.columns if 'brand' in c.lower() and ('2' in c or 'brand2' in c.lower())), None)
+                        if m_plat and m_b2 and m_cat_col:
+                            for _, row in master_df.iterrows():
+                                p_v = str(row[m_plat]).strip().lower()
+                                b_v = str(row[m_b2]).strip().lower()
+                                cat_val = str(row[m_cat_col]).strip().lower()
+                                combined_key = f"{p_v} & {b_v}"
+                                master_cat_dict[combined_key] = cat_val
 
-                def get_master_category(row):
-                    p = str(row.get('Platform', '')).strip().lower()
-                    b2 = str(row.get('Brand 2', '')).strip().lower()
-                    return master_cat_dict.get((p, b2), 'other')
+                def get_master_category_exact(row):
+                    pb2_target = str(row.get('Platform & Brand 2', '')).strip().lower()
+                    return master_cat_dict.get(pb2_target, 'other')
 
-                final_df['Master_Category'] = final_df.apply(get_master_category, axis=1)
+                final_df['Master_Category'] = final_df.apply(get_master_category_exact, axis=1)
 
                 val_jc_enabler = int(final_df['Master_Category'].str.contains('enabler', na=False).sum())
                 val_jc_fulfilment = int(final_df['Master_Category'].str.contains('fulfilment|fullfilment', na=False).sum())
-                val_other = int(final_df['Master_Category'].str.contains('other', na=False).sum()) | int((~final_df['Master_Category'].str.contains('enabler|fulfilment|fullfilment', na=False)).sum())
+                val_other = int(final_df['Master_Category'].eq('other').sum()) | int((~final_df['Master_Category'].str.contains('enabler|fulfilment|fullfilment', na=False)).sum())
 
                 master_status_col = next((c for c in master_df.columns if 'online status' in c.lower() or c.lower() == 'status'), None)
                 master_track_col = next((c for c in master_df.columns if 'tracking' in c.lower()), None)
