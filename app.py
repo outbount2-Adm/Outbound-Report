@@ -195,7 +195,6 @@ with st.container():
                 del st.session_state['excel_data']
             st.rerun()
 
-    format_str = ""
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
@@ -252,27 +251,24 @@ with st.container():
                                 kur = str(row['Kurir']).strip() if pd.notna(row['Kurir']) else ""
                                 master_carrier_db[cc] = kur
 
-                        # Lookup Master Category (XLOOKUP style: Platform & Brand 2)
-                        m_pb2_col = next((c for c in df.columns if 'platform' in c.lower() and 'brand' in c.lower()), None)
-                        m_plat_col = next((c for c in df.columns if c.lower().strip() in ['platform', 'platform.1']), None)
-                        m_b2_col = next((c for c in df.columns if 'brand' in c.lower() and ('2' in c or 'brand2' in c.lower())), None)
-                        m_cat_col = next((c for c in df.columns if any(k in c.lower() for k in ['category', 'kategori', 'segment'])), None)
+                        # --- PERBAIKAN XLOOKUP KATEGORI DARI MASTER ---
+                        # Mencari kolom referensi XLOOKUP yang benar ('Platform.1' & 'Brand 2')
+                        m_plat_ref = next((c for c in df.columns if c.lower().strip() in ['platform.1', 'platform']), None)
+                        m_brand_ref = next((c for c in df.columns if c.lower().strip() in ['brand 2', 'brand2']), None)
+                        m_cat_col = next((c for c in df.columns if any(k in c.lower() for k in ['category', 'kategori', 'segment']) and c.lower() != 'sales channel'), None)
                         
                         if m_cat_col:
-                            for _, row in df.iterrows():
+                            # Filter baris master kategori yang valid
+                            df_cat_subset = df[[m_plat_ref, m_brand_ref, m_cat_col]].dropna(subset=[m_cat_col]) if m_plat_ref and m_brand_ref else df[[m_cat_col]]
+                            for _, row in df_cat_subset.iterrows():
                                 cat_val = str(row[m_cat_col]).strip() if pd.notna(row[m_cat_col]) else "Other"
                                 
-                                if m_pb2_col and pd.notna(row[m_pb2_col]):
-                                    key_single = str(row[m_pb2_col]).strip().upper()
-                                    master_category_map[key_single] = cat_val
-                                    
-                                if m_plat_col and m_b2_col:
-                                    p_v = str(row[m_plat_col]).strip().upper() if pd.notna(row[m_plat_col]) else ""
-                                    b_v = str(row[m_b2_col]).strip().upper() if pd.notna(row[m_b2_col]) else ""
-                                    if p_v and b_v:
-                                        master_category_map[f"{p_v} & {b_v}"] = cat_val
-                                        master_category_map[f"{p_v}&{b_v}"] = cat_val
-                                        master_category_map[(p_v, b_v)] = cat_val
+                                if m_plat_ref and m_brand_ref and pd.notna(row[m_plat_ref]) and pd.notna(row[m_brand_ref]):
+                                    p_v = str(row[m_plat_ref]).strip().upper()
+                                    b_v = str(row[m_brand_ref]).strip().upper()
+                                    master_category_map[f"{p_v} & {b_v}"] = cat_val
+                                    master_category_map[f"{p_v}&{b_v}"] = cat_val
+                                    master_category_map[(p_v, b_v)] = cat_val
 
                     elif 'daily' in file_name:
                         dfs['daily_ho'] = df
@@ -421,8 +417,6 @@ with st.container():
                 res['Brand'] = np.where(brand_is_na & is_platform_other, "SK", np.where(brand_is_na, "AceKid", res['Brand']))
                 res['Brand 2'] = np.where(brand2_is_na & is_platform_other, "SK", np.where(brand2_is_na, "AceKid", res['Brand 2']))
 
-                # Kolom bantu internal untuk XLOOKUP kategori (TIDAK DITAMPILKAN DI LAPORAN AKHIR)
-                res['_Platform_Brand2_Internal_Key'] = res['Platform'].fillna('').astype(str).str.strip() + " & " + res['Brand 2'].fillna('').astype(str).str.strip()
                 res['Admin'] = current_admin
 
                 # --- TAHAP 3: Kalkulasi Waktu & SLA (70%) ---
@@ -565,7 +559,7 @@ with st.container():
                 res['Packing to Shipped Date'] = format_timedelta_hhmmss(to_dt('Shipped Date') - to_dt('Packing Complete'))
                 res['Packing to Handover'] = format_timedelta_hhmmss(to_dt('Handover Date') - to_dt('Packing Complete'))
                 res['Shipped Date to Handover'] = format_timedelta_hhmmss(to_dt('Handover Date') - to_dt('Shipped Date'))
-                res['End Ship Date to Shipped Date'] = format_timedelta_hhmmss(to_dt('End Ship Date') - to_dt('Shipped Date'))
+                res['End Ship Date to Shpped Date'] = format_timedelta_hhmmss(to_dt('End Ship Date') - to_dt('Shipped Date'))
 
                 col_city = next((c for c in res.columns if 'ship to city' in c.lower()), None)
                 col_prov = next((c for c in res.columns if 'ship to st' in c.lower() or 'prov' in c.lower()), None)
@@ -673,7 +667,7 @@ with st.container():
                 res['Kurir_Akhir'] = np.nan
                 res['Late Proses By'] = np.nan
                 
-                # --- TAHAP 4: Menyusun Kolom Final (Tanpa menampilkan 'Platform & Brand 2') ---
+                # --- TAHAP 4: Menyusun Kolom Final (Tanpa kolom bantuan) ---
                 progress_bar.progress(90, text="Processing... (Menyusun laporan akhir & Excel) [90%]")
                 kolom_final = [
                     'WMS Order', 'ERP Document Number', 'Tracking#/PRO#', 'PlatformOrder', 'Staged User', 
@@ -812,28 +806,29 @@ with st.container():
                     val_avg_shipped = get_avg_time_str(final_df['Packing to Shipped Date']) if 'Packing to Shipped Date' in final_df.columns else "0:00:00"
                     val_avg_handover = get_avg_time_str(final_df['Shipped Date to Handover']) if 'Shipped Date to Handover' in final_df.columns else "0:00:00"
 
-                    # Lookup kategori menggunakan XLOOKUP internal berdasarkan Platform & Brand 2
+                    # --- XLOOKUP CATEGORY 2 KRITERIA (Platform & Brand 2) ---
                     def lookup_category_from_master(row):
-                        # Menggunakan data dari baris DataFrame res
                         p_val = str(row.get('Platform', '')).strip().upper()
                         b2_val = str(row.get('Brand 2', '')).strip().upper()
-                        key_comb = f"{p_val} & {b2_val}"
                         
-                        if key_comb in master_category_map:
-                            return master_category_map[key_comb]
-                        elif f"{p_val}&{b2_val}" in master_category_map:
-                            return master_category_map[f"{p_val}&{b2_val}"]
+                        key_comb1 = f"{p_val} & {b2_val}"
+                        key_comb2 = f"{p_val}&{b2_val}"
+                        
+                        if key_comb1 in master_category_map:
+                            return master_category_map[key_comb1]
+                        elif key_comb2 in master_category_map:
+                            return master_category_map[key_comb2]
                         elif (p_val, b2_val) in master_category_map:
                             return master_category_map[(p_val, b2_val)]
                         elif p_val in master_category_map:
                             return master_category_map[p_val]
                         return "Other"
 
-                    final_df['Master_Category'] = res.apply(lookup_category_from_master, axis=1)
+                    final_df['Master_Category'] = final_df.apply(lookup_category_from_master, axis=1)
                     cat_series = final_df['Master_Category'].astype(str).str.lower()
 
                     mask_enabler = cat_series.str.contains('enabler', na=False)
-                    mask_fulfilment = cat_series.str.contains('fulfil|center', regex=True, na=False) & ~mask_enabler
+                    mask_fulfilment = cat_series.str.contains('fulfil|center|service', regex=True, na=False) & ~mask_enabler
 
                     val_jc_enabler = int(mask_enabler.sum())
                     val_jc_fulfilment = int(mask_fulfilment.sum())
@@ -851,7 +846,7 @@ with st.container():
                         [6, "avg_handover", val_avg_handover, "AVG Laporan_WMS Shipped Date to Handover"],
                         [7, "kurir_instan", f"{val_kurir_instan:,}", "Total Deliveree Qty kriteria kurir instan"],
                         [8, "jc_enabler", f"{val_jc_enabler:,}", "Lookup Master: Jet Commerce Enabler"],
-                        [9, "jc_fulfilment", f"{val_jc_fulfilment:,}", "Lookup Master: Jet Commerce Fulfillment Center"],
+                        [9, "jc_fulfilment", f"{val_jc_fulfilment:,}", "Lookup Master: Jet Commerce Fulfillment Center / Service"],
                         [10, "other", f"{val_other:,}", "Lookup Master: Kategori lainnya"],
                         [11, "traceable", f"{val_traceable:,}", "Lookup Status: Paket traceable"],
                         [12, "untraceable", f"{val_untraceable:,}", "Lookup Status: Paket untraceable"],
