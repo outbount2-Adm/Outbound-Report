@@ -634,31 +634,49 @@ if execute_clicked:
 
             final_df = final_df.rename(columns={'Admin_Akhir': 'Admin', 'Kurir_Akhir': 'Kurir'})
             final_df = final_df.loc[:, ~final_df.columns.duplicated()]
-            final_df.insert(0, 'No', range(1, len(final_df) + 1))
 
+            # --- MAPPING MASTER TRACKING STATUS (TRACEABLE / UNTRACEABLE) ---
+            master_df = dfs.get('master', pd.DataFrame())
+            master_status_col = next((c for c in master_df.columns if 'online status' in c.lower() or c.lower() == 'status'), None)
+            master_track_col = next((c for c in master_df.columns if 'tracking' in c.lower()), None)
+            
+            master_track_dict = {}
+            if master_status_col and master_track_col:
+                for _, row in master_df.iterrows():
+                    st_val = str(row[master_status_col]).strip().lower()
+                    tr_val = str(row[master_track_col]).strip().lower()
+                    if st_val and pd.notna(row[master_track_col]):
+                        master_track_dict[st_val] = tr_val
+
+            final_df['Master_Tracking'] = final_df['Status'].astype(str).str.strip().str.lower().map(master_track_dict).fillna('untraceable')
+
+            final_df.insert(0, 'No', range(1, len(final_df) + 1))
             st.session_state['processed_result'] = final_df
 
             # Export Excel (Laporan_WMS & DB)
             output = BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                final_df.to_excel(writer, index=False, sheet_name='Laporan_WMS')
+                # Kolom Excel tanpa kolom internal 'Master_Tracking'
+                df_to_export = final_df.drop(columns=['Master_Tracking'], errors='ignore')
+                df_to_export.to_excel(writer, index=False, sheet_name='Laporan_WMS')
+                
                 workbook = writer.book
                 worksheet_wms = writer.sheets['Laporan_WMS']
                 format_header = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1})
                 
-                col_idx_track = list(final_df.columns).index('Tracking#/PRO#')
-                col_idx_plat = list(final_df.columns).index('PlatformOrder')
+                col_idx_track = list(df_to_export.columns).index('Tracking#/PRO#')
+                col_idx_plat = list(df_to_export.columns).index('PlatformOrder')
                 
-                for row_num in range(len(final_df)):
-                    val_track = str(final_df.iloc[row_num]['Tracking#/PRO#'])
-                    val_plat = str(final_df.iloc[row_num]['PlatformOrder'])
+                for row_num in range(len(df_to_export)):
+                    val_track = str(df_to_export.iloc[row_num]['Tracking#/PRO#'])
+                    val_plat = str(df_to_export.iloc[row_num]['PlatformOrder'])
                     
                     if val_track != 'nan' and val_track != '':
                         worksheet_wms.write_string(row_num + 1, col_idx_track, val_track)
                     if val_plat != 'nan' and val_plat != '':
                         worksheet_wms.write_string(row_num + 1, col_idx_plat, val_plat)
 
-                for col_num, value in enumerate(final_df.columns.values):
+                for col_num, value in enumerate(df_to_export.columns.values):
                     worksheet_wms.write(0, col_num, value, format_header)
                     worksheet_wms.set_column(col_num, col_num, 16)
 
@@ -696,7 +714,6 @@ if execute_clicked:
 
                 raw_ho_df = dfs['ho_outbound']
                 
-                # 1. PERBAIKAN pending_order: total qty pada kolom "Pending Cut Off Qty"
                 val_pending = 0
                 col_pending_cutoff = next((c for c in raw_ho_df.columns if 'pending cut off' in c.lower() or 'pending cutoff' in c.lower() or ('pending' in c.lower() and 'qty' in c.lower())), None)
                 if col_pending_cutoff:
@@ -718,7 +735,6 @@ if execute_clicked:
                 val_avg_shipped = get_avg_time_str(final_df['Packing to Shipped Date']) if 'Packing to Shipped Date' in final_df.columns else "0:00:00"
                 val_avg_handover = get_avg_time_str(final_df['Shipped Date to Handover']) if 'Shipped Date to Handover' in final_df.columns else "0:00:00"
 
-                # 2. PERBAIKAN kurir_instan: total qty kolom "Deliveree Qty" berdasarkan kriteria kurir instan
                 val_kurir_instan = 0
                 col_deliveree_qty = next((c for c in raw_ho_df.columns if 'deliveree' in c.lower()), None)
                 col_expedisi_ho = next((c for c in raw_ho_df.columns if 'expedisi' in c.lower() or 'kurir' in c.lower() or 'carrier' in c.lower()), None)
@@ -742,7 +758,6 @@ if execute_clicked:
                     mask_match = courier_series.isin(target_couriers)
                     val_kurir_instan = int(qty_series[mask_match].sum())
 
-                # 3. PERBAIKAN LOOKUP KATEGORI MASTER (Platform + Brand 2)
                 def lookup_category_from_master(row):
                     p_val = str(row.get('Platform', '')).strip().upper()
                     b2_val = str(row.get('Brand 2', '')).strip().upper()
@@ -769,20 +784,6 @@ if execute_clicked:
                     'jet commerce fullfilment',
                     'jet commerce fulfillment'
                 ])).sum())
-
-                master_df = dfs.get('master', pd.DataFrame())
-                master_status_col = next((c for c in master_df.columns if 'online status' in c.lower() or c.lower() == 'status'), None)
-                master_track_col = next((c for c in master_df.columns if 'tracking' in c.lower()), None)
-                
-                master_track_dict = {}
-                if master_status_col and master_track_col:
-                    for _, row in master_df.iterrows():
-                        st_val = str(row[master_status_col]).strip().lower()
-                        tr_val = str(row[master_track_col]).strip().lower()
-                        if st_val and pd.notna(row[master_track_col]):
-                            master_track_dict[st_val] = tr_val
-
-                final_df['Master_Tracking'] = final_df['Status'].astype(str).str.strip().str.lower().map(master_track_dict).fillna('untraceable')
 
                 val_traceable = int(final_df['Master_Tracking'].eq('traceable').sum())
                 val_untraceable = int(final_df['Master_Tracking'].eq('untraceable').sum())
@@ -849,11 +850,40 @@ if execute_clicked:
         st.warning("Silakan unggah file sumber terlebih dahulu di area Data Center.")
 
 # ==========================================
-# --- TAMPILAN PREVIEW & DOWNLOAD ---
+# --- TAMPILAN PREVIEW & NOTIFIKASI ---
 # ==========================================
 if 'processed_result' in st.session_state:
-    st.success(f"✅ Berhasil memproses total {len(st.session_state['processed_result'])} baris data!")
-    st.dataframe(st.session_state['processed_result'], use_container_width=True)
+    res_df = st.session_state['processed_result']
+    st.success(f"✅ Berhasil memproses total {len(res_df)} baris data!")
+
+    # 1. PERINGATAN & SUMMARY PREVIEW DATA UNTRACEABLE
+    if 'Master_Tracking' in res_df.columns:
+        untraceable_data = res_df[res_df['Master_Tracking'] == 'untraceable']
+        untraceable_count = len(untraceable_data)
+        
+        if untraceable_count > 0:
+            st.warning(f"⚠️ **PERINGATAN DATA UNTRACEABLE:** Ditemukan **{untraceable_count}** paket dengan status **Untraceable**!")
+            
+            with st.expander("🔍 **Summary Preview Data Untraceable (Klik untuk buka/tutup)**", expanded=True):
+                col_u1, col_u2 = st.columns([1, 2])
+                
+                with col_u1:
+                    st.markdown("**Ringkasan Jumlah Paket per Status:**")
+                    status_summary = untraceable_data['Status'].value_counts().reset_index()
+                    status_summary.columns = ['Status', 'Jumlah Paket']
+                    st.dataframe(status_summary, use_container_width=True, hide_index=True)
+                
+                with col_u2:
+                    st.markdown("**Detail Paket Untraceable:**")
+                    cols_to_show = [c for c in ['No', 'WMS Order', 'ERP Document Number', 'Platform', 'Kurir', 'Status', 'Tracking#/PRO#'] if c in untraceable_data.columns]
+                    st.dataframe(untraceable_data[cols_to_show], use_container_width=True, hide_index=True)
+        else:
+            st.info("🎉 Seluruh paket berstatus **Traceable** (0 Untraceable).")
+
+    # 2. PREVIEW SELURUH DATA & DOWNLOAD BUTTON
+    display_df = res_df.drop(columns=['Master_Tracking'], errors='ignore')
+    st.markdown("### 📊 Preview Hasil Data Outbound")
+    st.dataframe(display_df, use_container_width=True)
 
     st.download_button(
         label="📥 Download Laporan Excel",
