@@ -203,7 +203,7 @@ if execute_clicked:
                             kur = str(row['Kurir']).strip() if pd.notna(row['Kurir']) else ""
                             master_carrier_db[cc] = kur
 
-                    # --- LOOKUP MASTER CATEGORY (Platform & Brand 2) ---
+                    # Lookup Master Category (Platform & Brand 2)
                     m_pb2_col = next((c for c in df.columns if 'platform' in c.lower() and 'brand' in c.lower()), None)
                     m_plat_col = next((c for c in df.columns if c.lower().strip() == 'platform'), None)
                     m_b2_col = next((c for c in df.columns if 'brand' in c.lower() and ('2' in c or 'brand2' in c.lower())), None)
@@ -213,12 +213,10 @@ if execute_clicked:
                         for _, row in df.iterrows():
                             cat_val = str(row[m_cat_col]).strip() if pd.notna(row[m_cat_col]) else "Other"
                             
-                            # 1. Jika di master ada langsung kolom 'Platform&Brand 2'
                             if m_pb2_col and pd.notna(row[m_pb2_col]):
                                 key_single = str(row[m_pb2_col]).strip().upper()
                                 master_category_map[key_single] = cat_val
                                 
-                            # 2. Jika terpisah kolom 'Platform' & 'Brand 2'
                             if m_plat_col and m_b2_col:
                                 p_v = str(row[m_plat_col]).strip().upper() if pd.notna(row[m_plat_col]) else ""
                                 b_v = str(row[m_b2_col]).strip().upper() if pd.notna(row[m_b2_col]) else ""
@@ -270,11 +268,11 @@ if execute_clicked:
             for key in ['op_log', 'pack_task', 'erp']:
                 if key not in dfs: dfs[key] = pd.DataFrame()
 
-            # --- TAHAP 2: Menggabungkan Basis Data / Merge (35%) ---
+            # --- TAHAP 2: Merge Data (35%) ---
             progress_bar.progress(35, text="Processing... (Mencocokkan baris & Merge data) [35%]")
             df_ho = dfs['ho_outbound'].copy()
             if 'WMS Order' not in df_ho.columns:
-                st.error(f"❌ Kolom 'WMS Order' (atau 'No WMS') tidak ditemukan di file HO Outbound.")
+                st.error("❌ Kolom 'WMS Order' (atau 'No WMS') tidak ditemukan di file HO Outbound.")
                 st.stop()
             
             res = pd.DataFrame()
@@ -646,7 +644,7 @@ if execute_clicked:
             final_df = final_df.rename(columns={'Admin_Akhir': 'Admin', 'Kurir_Akhir': 'Kurir'})
             final_df = final_df.loc[:, ~final_df.columns.duplicated()]
 
-            # --- MAPPING MASTER TRACKING STATUS (TRACEABLE / UNTRACEABLE) ---
+            # --- MAPPING MASTER TRACKING STATUS ---
             master_df = dfs.get('master', pd.DataFrame())
             master_status_col = next((c for c in master_df.columns if 'online status' in c.lower() or c.lower() == 'status'), None)
             master_track_col = next((c for c in master_df.columns if 'tracking' in c.lower()), None)
@@ -664,10 +662,9 @@ if execute_clicked:
             final_df.insert(0, 'No', range(1, len(final_df) + 1))
             st.session_state['processed_result'] = final_df
 
-            # Export Excel (Laporan_WMS & DB)
+            # Export Excel
             output = BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                # Kolom Excel tanpa kolom internal 'Master_Tracking'
                 df_to_export = final_df.drop(columns=['Master_Tracking'], errors='ignore')
                 df_to_export.to_excel(writer, index=False, sheet_name='Laporan_WMS')
                 
@@ -715,7 +712,7 @@ if execute_clicked:
                 df_status.columns = ['Status_Manifest', 'qty']
                 df_status.insert(0, 'No', range(1, len(df_status) + 1))
 
-                # --- KALKULASI METRIC SUMMARY (PERBAIKAN REVISI) ---
+                # --- REVISI KALKULASI METRICS SUMMARY ---
                 df_os_open = dfs.get('order_summary_open', dfs.get('order_summary', pd.DataFrame()))
                 col_ref_sum = next((c for c in df_os_open.columns if 'ref#' in c.lower()), None)
                 val_target = df_os_open[col_ref_sum].astype(str).str.strip().replace('', np.nan).replace('nan', np.nan).dropna().nunique() if col_ref_sum else 0
@@ -723,17 +720,18 @@ if execute_clicked:
                 val_delivered = len(final_df)
                 val_delivery_rate = round((val_delivered / val_target * 100), 2) if val_target > 0 else 0.0
 
-                raw_ho_df = dfs['ho_outbound']
-                
-                # 1. PENDING_ORDER: Summary kolom Pending Cut Off Qty di file Daily HO
-                val_pending = 0
-                col_pending_cutoff = next((c for c in raw_ho_df.columns if 'pending cut off qty' in c.lower() or 'pending cut off' in c.lower() or 'pending cutoff' in c.lower() or ('pending' in c.lower() and 'qty' in c.lower())), None)
-                if col_pending_cutoff:
-                    val_pending = int(pd.to_numeric(raw_ho_df[col_pending_cutoff].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0).sum())
+                raw_ho_df = dfs.get('ho_outbound', pd.DataFrame())
 
+                # Pending Order (Pencarian Kolom Fleksibel)
+                val_pending = 0
+                col_pending = next((c for c in raw_ho_df.columns if 'pending' in c.lower()), None)
+                if col_pending:
+                    val_pending = int(pd.to_numeric(raw_ho_df[col_pending].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0).sum())
+
+                # Average Times
                 def get_avg_time_str(series_hhmmss):
                     if series_hhmmss is None or series_hhmmss.empty:
-                        return "00:00:00"
+                        return "0:00:00"
                     secs = get_safe_seconds(series_hhmmss)
                     valid_secs = secs[secs > 0]
                     if len(valid_secs) > 0:
@@ -747,32 +745,20 @@ if execute_clicked:
                 val_avg_shipped = get_avg_time_str(final_df['Packing to Shipped Date']) if 'Packing to Shipped Date' in final_df.columns else "0:00:00"
                 val_avg_handover = get_avg_time_str(final_df['Shipped Date to Handover']) if 'Shipped Date to Handover' in final_df.columns else "0:00:00"
 
-                # 2. KURIR_INSTAN: Sum if Deliveree Qty di Daily HO dengan kriteria kurir instan
+                # Kurir Instan (Pencocokan Kata Kunci Fleksibel)
                 val_kurir_instan = 0
-                col_deliveree_qty = next((c for c in raw_ho_df.columns if 'deliveree qty' in c.lower() or 'deliveree' in c.lower()), None)
-                col_expedisi_ho = next((c for c in raw_ho_df.columns if 'expedisi' in c.lower() or 'kurir' in c.lower() or 'carrier' in c.lower()), None)
-                
-                if not col_expedisi_ho and raw_ho_df.shape[1] >= 2:
-                    col_expedisi_ho = raw_ho_df.columns[1]
-                if not col_deliveree_qty and raw_ho_df.shape[1] >= 6:
-                    col_deliveree_qty = raw_ho_df.columns[5]
+                col_deliveree_qty = next((c for c in raw_ho_df.columns if 'deliveree' in c.lower() or 'qty' in c.lower()), None)
+                col_expedisi_ho = next((c for c in raw_ho_df.columns if any(k in c.lower() for k in ['expedisi', 'kurir', 'carrier', 'ekspedisi'])), None)
 
                 if col_expedisi_ho and col_deliveree_qty:
-                    courier_series = raw_ho_df[col_expedisi_ho].astype(str).str.strip().str.lower()
+                    courier_series = raw_ho_df[col_expedisi_ho].astype(str).str.lower()
                     qty_series = pd.to_numeric(raw_ho_df[col_deliveree_qty].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0)
                     
-                    # Pencocokan fleksibel untuk AnterAja Sameday (Rit 1, 2, 3), Go-Jek/Grab/Shopee Instant, Paxel (Rit 1, 2, 3)
-                    def is_kurir_instan(c_str):
-                        c_str = c_str.lower()
-                        if 'anteraja sameday' in c_str: return True
-                        if 'go-jek' in c_str or 'grab' in c_str or 'shopee instant' in c_str or 'instant' in c_str: return True
-                        if 'paxel' in c_str: return True
-                        return False
-
-                    mask_instan = courier_series.apply(is_kurir_instan)
+                    pattern = r'anteraja|grab|gojek|go-jek|shopee|paxel|instant|sameday'
+                    mask_instan = courier_series.str.contains(pattern, regex=True, na=False)
                     val_kurir_instan = int(qty_series[mask_instan].sum())
 
-                # 3. LOOKUP CATEGORY (Platform&Brand 2) -> Mapping Kriteria Hasil Lookup
+                # Lookup Category: JC Enabler & JC Fulfilment (Perbaikan Swapped Logic & Flexible Match)
                 def lookup_category_from_master(row):
                     pb2_val = str(row.get('Platform & Brand 2', '')).strip().upper()
                     p_val = str(row.get('Platform', '')).strip().upper()
@@ -785,29 +771,16 @@ if execute_clicked:
                     return "Other"
 
                 final_df['Master_Category'] = final_df.apply(lookup_category_from_master, axis=1)
-                cat_clean = final_df['Master_Category'].astype(str).str.strip().str.lower()
+                cat_series = final_df['Master_Category'].astype(str).str.lower()
 
-                # Pemetaan kriteria sesuai perintah:
-                # - Jet Commerce Fullfilment Center = jc_enabler
-                val_jc_enabler = int(cat_clean.isin([
-                    'jet commerce fullfilment center', 
-                    'jet commerce fulfillment center',
-                    'jet commerce fullfilment',
-                    'jet commerce fulfillment'
-                ]).sum())
+                mask_enabler = cat_series.str.contains('enabler', na=False)
+                mask_fulfilment = cat_series.str.contains('fulfil|center', regex=True, na=False) & ~mask_enabler
 
-                # - Jet Commerce Enabler = jc_fulfilment
-                val_jc_fulfilment = int(cat_clean.eq('jet commerce enabler').sum())
+                val_jc_enabler = int(mask_enabler.sum())
+                val_jc_fulfilment = int(mask_fulfilment.sum())
+                val_other = int((~mask_enabler & ~mask_fulfilment).sum())
 
-                # - Other = Other
-                val_other = int((~cat_clean.isin([
-                    'jet commerce enabler', 
-                    'jet commerce fullfilment center', 
-                    'jet commerce fulfillment center',
-                    'jet commerce fullfilment',
-                    'jet commerce fulfillment'
-                ])).sum())
-
+                # Status Tracking
                 val_traceable = int(final_df['Master_Tracking'].eq('traceable').sum())
                 val_untraceable = int(final_df['Master_Tracking'].eq('untraceable').sum())
 
@@ -819,8 +792,8 @@ if execute_clicked:
                     [5, "avg_shipped", val_avg_shipped, "AVG Laporan_WMS Packing to Shipped Date"],
                     [6, "avg_handover", val_avg_handover, "AVG Laporan_WMS Shipped Date to Handover"],
                     [7, "kurir_instan", f"{val_kurir_instan:,}", "Total Deliveree Qty kriteria kurir instan"],
-                    [8, "jc_enabler", f"{val_jc_enabler:,}", "Lookup Master: Jet Commerce Fullfilment Center"],
-                    [9, "jc_fulfilment", f"{val_jc_fulfilment:,}", "Lookup Master: Jet Commerce Enabler"],
+                    [8, "jc_enabler", f"{val_jc_enabler:,}", "Lookup Master: Jet Commerce Enabler"],
+                    [9, "jc_fulfilment", f"{val_jc_fulfilment:,}", "Lookup Master: Jet Commerce Fulfillment Center"],
                     [10, "other", f"{val_other:,}", "Lookup Master: Kategori lainnya"],
                     [11, "traceable", f"{val_traceable:,}", "Lookup Status: Paket traceable"],
                     [12, "untraceable", f"{val_untraceable:,}", "Lookup Status: Paket untraceable"],
@@ -873,13 +846,12 @@ if execute_clicked:
         st.warning("Silakan unggah file sumber terlebih dahulu di area Data Center.")
 
 # ==========================================
-# --- TAMPILAN PREVIEW & NOTIFIKASI ---
+# 6. TAMPILAN PREVIEW & NOTIFIKASI
 # ==========================================
 if 'processed_result' in st.session_state:
     res_df = st.session_state['processed_result']
     st.success(f"✅ Berhasil memproses total {len(res_df)} baris data!")
 
-    # 1. PERINGATAN & SUMMARY PREVIEW DATA UNTRACEABLE
     if 'Master_Tracking' in res_df.columns:
         untraceable_data = res_df[res_df['Master_Tracking'] == 'untraceable']
         untraceable_count = len(untraceable_data)
@@ -903,7 +875,6 @@ if 'processed_result' in st.session_state:
         else:
             st.info("🎉 Seluruh paket berstatus **Traceable** (0 Untraceable).")
 
-    # 2. PREVIEW SELURUH DATA & DOWNLOAD BUTTON
     display_df = res_df.drop(columns=['Master_Tracking'], errors='ignore')
     st.markdown("### 📊 Preview Hasil Data Outbound")
     st.dataframe(display_df, use_container_width=True)
