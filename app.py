@@ -22,23 +22,16 @@ current_date = datetime.datetime.now().strftime("%B %d, %Y")
 # ==========================================
 custom_css = """
 <style>
-    /* Latar belakang halaman modern yang sangat halus */
     .stApp { background-color: #F1F5F9; }
-    
-    /* Sembunyikan menu Streamlit secara keseluruhan */
     #MainMenu, footer, header, .stDeployButton, [data-testid="viewerBadge"] {
         visibility: hidden !important; 
         display: none !important;
     }
-    
-    /* Optimasi margin container */
     .block-container {
         padding-top: 1rem !important;
         max-width: 1300px;
         margin: auto;
     }
-    
-    /* Tipografi modern */
     h1 {
         color: #0f172a;
         font-weight: 900;
@@ -65,8 +58,6 @@ custom_css = """
         margin-bottom: 25px;
         text-align: left !important;
     }
-    
-    /* Gaya kartu modern untuk container utama */
     .modern-card {
         background-color: #FFFFFF;
         border: 1px solid #e2e8f0;
@@ -75,8 +66,6 @@ custom_css = """
         box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
         margin-bottom: 30px;
     }
-
-    /* Kartu untuk informasi Officer */
     .officer-panel {
         background-color: #F8FAFC;
         border: 1px solid #e2e8f0;
@@ -85,8 +74,6 @@ custom_css = """
         margin-bottom: 20px;
     }
     .officer-name { color: #2563eb; font-weight: 800; }
-    
-    /* Gaya modern untuk input field */
     [data-testid="stTextInput"] > div > div > input {
         border-radius: 10px;
         border: 1.5px solid #cbd5e1;
@@ -94,91 +81,26 @@ custom_css = """
         color: #334155;
         font-size: 16px;
         padding: 12px 15px !important;
-        transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
-    [data-testid="stTextInput"] > div > div > input:focus {
-        border-color: #2563eb;
-        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-        outline: none;
-    }
-    
-    /* Gaya modern untuk area uploader */
     [data-testid="stFileUploader"] {
         background-color: #FFFFFF !important;
         border: 2px dashed #2563eb !important;
         border-radius: 12px !important;
         padding: 30px !important;
-        transition: border-color 0.3s ease, background-color 0.3s ease;
     }
-    [data-testid="stFileUploader"]:hover {
-        border-color: #1d4ed8 !important;
-        background-color: #F0F9FF !important;
-    }
-    
-    /* Hapus prompt visual Streamlit, gunakan prompt kustom */
     [data-testid="stFileUploaderPrompt"] { display: none !important; }
-    
-    /* Gaya modern untuk tombol utama (proses data) */
     div[data-testid="stButton"] > button[kind="primary"],
     button[data-testid="baseButton-primary"], 
     .stButton > button[type="primary"] {
         background-color: #2563eb !important;
-        background-image: none !important;
         color: white !important;
         border: none !important;
         border-radius: 10px !important;
         font-weight: 800 !important;
         font-size: 1.1rem !important;
-        letter-spacing: 0.5px;
         padding: 18px 30px !important;
         margin-top: 10px;
-        transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
-        box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.2), 0 4px 6px -2px rgba(37, 99, 235, 0.1);
     }
-    div[data-testid="stButton"] > button[kind="primary"]:hover,
-    button[data-testid="baseButton-primary"]:hover, 
-    .stButton > button[type="primary"]:hover {
-        background-color: #1d4ed8 !important;
-        color: white !important;
-        transform: translateY(-2px);
-        box-shadow: 0 15px 20px -3px rgba(29, 78, 216, 0.25), 0 8px 8px -2px rgba(29, 78, 216, 0.15);
-    }
-    div[data-testid="stButton"] > button[kind="primary"]:active,
-    button[data-testid="baseButton-primary"]:active, 
-    .stButton > button[type="primary"]:active {
-        transform: translateY(-1px);
-        box-shadow: 0 5px 10px -2px rgba(29, 78, 216, 0.3);
-    }
-    
-    /* Tombol dinonaktifkan */
-    div[data-testid="stButton"] > button[kind="primary"]:disabled {
-        background-color: #cbd5e1 !important;
-        color: #94a3b8 !important;
-        cursor: not-allowed;
-        transform: none !important;
-        box-shadow: none !important;
-    }
-    
-    /* Gaya modern untuk tombol sekunder (submit admin, clear data) */
-    div[data-testid="stButton"] > button:not([kind="primary"]):not([type="primary"]) {
-        background-color: #ffffff !important;
-        color: #334155 !important;
-        border: 1px solid #cbd5e1 !important;
-        border-radius: 10px !important;
-        font-weight: 700 !important;
-        padding: 10px 20px !important;
-        transition: background-color 0.2s ease, border-color 0.2s ease;
-    }
-    div[data-testid="stButton"] > button:not([kind="primary"]):not([type="primary"]):hover {
-        background-color: #F1F5F9 !important;
-        border-color: #94a3b8 !important;
-        color: #0f172a !important;
-    }
-    
-    /* Tambahan pemisah halus */
-    .stDivider { margin: 25px 0 !important; }
-    
-    /* Kartu notifikasi hasil kustom */
     .result-notif {
         padding: 20px;
         border-radius: 12px;
@@ -209,16 +131,13 @@ if 'saved_admin' not in st.session_state:
 
 with st.container():
     st.markdown('<div class="modern-card">', unsafe_allow_html=True)
-    
-    col_header1, col_header2 = st.columns([12, 1]) 
-    with col_header1:
-        st.markdown('<h1>🏢 Outbound Auto-Processor</h1>', unsafe_allow_html=True)
-        st.markdown(f'<div class="meta-text">Selamat datang kembali! Perbarui nama Officer jika diperlukan sebelum memproses data.</div>', unsafe_allow_html=True)
+    st.markdown('<h1>🏢 Outbound Auto-Processor</h1>', unsafe_allow_html=True)
+    st.markdown('<div class="meta-text">Selamat datang kembali! Perbarui nama Officer jika diperlukan sebelum memproses data.</div>', unsafe_allow_html=True)
 
     st.markdown('<div class="officer-panel">', unsafe_allow_html=True)
     col_adm1, col_adm2, col_date = st.columns([4, 2, 3])
     with col_adm1:
-        st.markdown(f'<div class="meta-text" style="margin-bottom: 5px; color: #334155;">Officer Aktif:</div>', unsafe_allow_html=True)
+        st.markdown('<div class="meta-text" style="margin-bottom: 5px; color: #334155;">Officer Aktif:</div>', unsafe_allow_html=True)
         admin_input_temp = st.text_input("Admin", value=st.session_state['saved_admin'], label_visibility="collapsed", placeholder="Ketik nama Officer / Admin...")
     with col_adm2:
         st.write("") 
@@ -240,9 +159,8 @@ with st.container():
 # ==========================================
 with st.container():
     st.markdown('<div class="modern-card">', unsafe_allow_html=True)
-    
     st.markdown('<h3>📁 Data Center</h3>', unsafe_allow_html=True)
-    st.markdown('<div style="color: #475569; font-size: 15px; margin-bottom: 20px;">Seret dan lepas file sumber Anda di bawah ini. Pastikan mengunggah semua file wajib (Order Summary, Operation Log, ERP, HO Outbound, Daily HO, Master) untuk memulai pemrosesan.</div>', unsafe_allow_html=True)
+    st.markdown('<div style="color: #475569; font-size: 15px; margin-bottom: 20px;">Seret dan lepas file sumber Anda di bawah ini (Order Summary, Operation Log, ERP, HO Outbound, Daily HO, Master).</div>', unsafe_allow_html=True)
 
     if 'file_uploader_key' not in st.session_state:
         st.session_state['file_uploader_key'] = 0
@@ -253,7 +171,7 @@ with st.container():
             <div style="text-align: center; color: #2563eb; margin-bottom: -10px;">
                 <p style="font-size: 30px; margin-bottom: 5px;">📤</p>
                 <p style="font-size: 16px; font-weight: 700;">Drag & Drop file di sini</p>
-                <p style="font-size: 14px; color: #64748b;">Mendukung .xlsx atau .csv (Maks. 200MB per file)</p>
+                <p style="font-size: 14px; color: #64748b;">Mendukung .xlsx atau .csv</p>
             </div>
         """, unsafe_allow_html=True)
         uploaded_files = st.file_uploader(
@@ -277,7 +195,7 @@ with st.container():
                 del st.session_state['excel_data']
             st.rerun()
 
-    st.write("")
+    format_str = ""
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
@@ -285,9 +203,7 @@ with st.container():
 # ==========================================
 with st.container():
     st.markdown('<div class="modern-card">', unsafe_allow_html=True)
-    
     st.markdown('<h3>⚙️ Antrean Pemrosesan</h3>', unsafe_allow_html=True)
-    st.markdown('<div style="color: #475569; font-size: 15px; margin-bottom: 20px;">Klik tombol di bawah ini untuk memulai pengolahan data otomatis. Pastikan file sudah terunggah dengan benar.</div>', unsafe_allow_html=True)
     
     files_ready = len(uploaded_files) > 0
     execute_clicked = st.button(
@@ -336,8 +252,9 @@ with st.container():
                                 kur = str(row['Kurir']).strip() if pd.notna(row['Kurir']) else ""
                                 master_carrier_db[cc] = kur
 
+                        # Lookup Master Category (XLOOKUP style: Platform & Brand 2)
                         m_pb2_col = next((c for c in df.columns if 'platform' in c.lower() and 'brand' in c.lower()), None)
-                        m_plat_col = next((c for c in df.columns if c.lower().strip() == 'platform'), None)
+                        m_plat_col = next((c for c in df.columns if c.lower().strip() in ['platform', 'platform.1']), None)
                         m_b2_col = next((c for c in df.columns if 'brand' in c.lower() and ('2' in c or 'brand2' in c.lower())), None)
                         m_cat_col = next((c for c in df.columns if any(k in c.lower() for k in ['category', 'kategori', 'segment'])), None)
                         
@@ -394,22 +311,18 @@ with st.container():
                 if 'ho_outbound' not in dfs:
                     st.error("❌ File 'HO Outbound' tidak ditemukan.")
                     st.stop()
-                if 'daily_ho' not in dfs:
-                    st.warning("⚠️ File 'Daily HO' tidak ditemukan. Kalkulasi metrik summary mungkin tidak lengkap.")
                 if 'order_summary' not in dfs:
                     st.error("❌ File 'Order Summary' tidak ditemukan.")
                     st.stop()
-                if 'master' not in dfs:
-                    st.warning("⚠️ File 'Master' tidak ditemukan.")
 
-                for key in ['op_log', 'pack_task', 'erp']:
+                for key in ['op_log', 'pack_task', 'erp', 'daily_ho']:
                     if key not in dfs: dfs[key] = pd.DataFrame()
 
                 # --- TAHAP 2: Merge Data (35%) ---
                 progress_bar.progress(35, text="Processing... (Mencocokkan baris & Merge data) [35%]")
                 df_ho = dfs['ho_outbound'].copy()
                 if 'WMS Order' not in df_ho.columns:
-                    st.error("❌ Kolom 'WMS Order' (atau 'No WMS') tidak ditemukan di file HO Outbound.")
+                    st.error("❌ Kolom 'WMS Order' tidak ditemukan di file HO Outbound.")
                     st.stop()
                 
                 res = pd.DataFrame()
@@ -508,7 +421,8 @@ with st.container():
                 res['Brand'] = np.where(brand_is_na & is_platform_other, "SK", np.where(brand_is_na, "AceKid", res['Brand']))
                 res['Brand 2'] = np.where(brand2_is_na & is_platform_other, "SK", np.where(brand2_is_na, "AceKid", res['Brand 2']))
 
-                res['Platform & Brand 2'] = res['Platform'].fillna('').astype(str).str.strip() + " & " + res['Brand 2'].fillna('').astype(str).str.strip()
+                # Kolom bantu internal untuk XLOOKUP kategori (TIDAK DITAMPILKAN DI LAPORAN AKHIR)
+                res['_Platform_Brand2_Internal_Key'] = res['Platform'].fillna('').astype(str).str.strip() + " & " + res['Brand 2'].fillna('').astype(str).str.strip()
                 res['Admin'] = current_admin
 
                 # --- TAHAP 3: Kalkulasi Waktu & SLA (70%) ---
@@ -759,15 +673,15 @@ with st.container():
                 res['Kurir_Akhir'] = np.nan
                 res['Late Proses By'] = np.nan
                 
-                # --- TAHAP 4: Menyusun Kolom Final & Export Excel (90%) ---
+                # --- TAHAP 4: Menyusun Kolom Final (Tanpa menampilkan 'Platform & Brand 2') ---
                 progress_bar.progress(90, text="Processing... (Menyusun laporan akhir & Excel) [90%]")
                 kolom_final = [
                     'WMS Order', 'ERP Document Number', 'Tracking#/PRO#', 'PlatformOrder', 'Staged User', 
-                    'Platform', 'Brand', 'Brand 2', 'Platform & Brand 2', 'Admin', 'Load', 'Kurir', 'Loader', 'Tanggal Handover', 
+                    'Platform', 'Brand', 'Brand 2', 'Admin', 'Load', 'Kurir', 'Loader', 'Tanggal Handover', 
                     'Wave ID', 'Created Time', 'Ordered Date', 'Picking Task Created Time', 
                     'pickCompletedTime - Released Date Pack', 'Packing Complete', 'Shipped Date', 'Handover Date', 
                     'End Ship Date', 'Packing to Shipped Date', 'Packing to Handover', 'Shipped Date to Handover', 
-                    'End Ship Date to Shipped Date', 'Kota', 'Provinsi', 'Status', 'Payment Menthood', 
+                    'End Ship Date to Shpped Date', 'Kota', 'Provinsi', 'Status', 'Payment Menthood', 
                     'total order amount', 'Dokumen', 'Attachment', 'Times Proses Kurir', 'Times Proses Kurir to Shpped Date', 
                     'Status Manifest', 'Status Late', 'Remark Late', 'Pay-Created', 'Created-Released', 'Released-Pick', 
                     'Pick-Pack', 'Pack-Collect', 'Collect-Manifest', 'Manifest-Endshipdate', 'Max', 'System', 'Admin_Akhir', 
@@ -854,19 +768,13 @@ with st.container():
                     val_delivered = len(final_df)
                     val_delivery_rate = round((val_delivered / val_target * 100), 2) if val_target > 0 else 0.0
 
-                    # === REVISI: AMBIL DATA DARI DAILY HO & FILTER BARIS TOTAL/SUMMARY ===
                     raw_daily_df = dfs.get('daily_ho', pd.DataFrame()).copy()
-
-                    # --- TAMBAHAN BARU: MENGHAPUS BARIS TOTAL/SUMMARY ---
-                    # Cek dan hapus baris yang berisi kata "Total" agar tidak dihitung ganda
                     if not raw_daily_df.empty:
                         col0 = raw_daily_df.columns[0]
                         col1 = raw_daily_df.columns[1] if len(raw_daily_df.columns) > 1 else col0
-                        
                         mask_total = raw_daily_df[col0].astype(str).str.lower().str.contains('total', na=False) | \
                                      raw_daily_df[col1].astype(str).str.lower().str.contains('total', na=False)
                         raw_daily_df = raw_daily_df[~mask_total]
-                    # ----------------------------------------------------
 
                     val_pending = 0
                     col_pending = next((c for c in raw_daily_df.columns if 'cut off' in c.lower()), None)
@@ -904,18 +812,24 @@ with st.container():
                     val_avg_shipped = get_avg_time_str(final_df['Packing to Shipped Date']) if 'Packing to Shipped Date' in final_df.columns else "0:00:00"
                     val_avg_handover = get_avg_time_str(final_df['Shipped Date to Handover']) if 'Shipped Date to Handover' in final_df.columns else "0:00:00"
 
+                    # Lookup kategori menggunakan XLOOKUP internal berdasarkan Platform & Brand 2
                     def lookup_category_from_master(row):
-                        pb2_val = str(row.get('Platform & Brand 2', '')).strip().upper()
+                        # Menggunakan data dari baris DataFrame res
                         p_val = str(row.get('Platform', '')).strip().upper()
                         b2_val = str(row.get('Brand 2', '')).strip().upper()
+                        key_comb = f"{p_val} & {b2_val}"
                         
-                        if pb2_val in master_category_map:
-                            return master_category_map[pb2_val]
+                        if key_comb in master_category_map:
+                            return master_category_map[key_comb]
+                        elif f"{p_val}&{b2_val}" in master_category_map:
+                            return master_category_map[f"{p_val}&{b2_val}"]
                         elif (p_val, b2_val) in master_category_map:
                             return master_category_map[(p_val, b2_val)]
+                        elif p_val in master_category_map:
+                            return master_category_map[p_val]
                         return "Other"
 
-                    final_df['Master_Category'] = final_df.apply(lookup_category_from_master, axis=1)
+                    final_df['Master_Category'] = res.apply(lookup_category_from_master, axis=1)
                     cat_series = final_df['Master_Category'].astype(str).str.lower()
 
                     mask_enabler = cat_series.str.contains('enabler', na=False)
