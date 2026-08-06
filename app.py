@@ -18,7 +18,7 @@ st.set_page_config(
 current_date = datetime.datetime.now().strftime("%B %d, %Y")
 
 # ==========================================
-# 2. CSS KUSTOM UNTUK DESAIN EXACT MATCH
+# 2. CSS KUSTOM
 # ==========================================
 custom_css = """
 <style>
@@ -169,7 +169,6 @@ if execute_clicked:
         progress_bar = st.progress(0, text="Processing... (0%)")
         
         try:
-            # --- TAHAP 1: Membaca File (10%) ---
             progress_bar.progress(10, text="Processing... (Membaca file sumber) [10%]")
             dfs = {}
             master_store_db = {}
@@ -203,7 +202,8 @@ if execute_clicked:
                             kur = str(row['Kurir']).strip() if pd.notna(row['Kurir']) else ""
                             master_carrier_db[cc] = kur
                 
-                elif 'ho outbound' in file_name or 'daily ho' in file_name: 
+                # Diperluas agar mendeteksi file HO / Daily HO / Outbound
+                elif 'ho' in file_name or 'outbound' in file_name or 'daily' in file_name: 
                     rename_map = {}
                     for col in df.columns:
                         c_lower = col.lower()
@@ -235,7 +235,7 @@ if execute_clicked:
                 elif 'erp' in file_name: dfs['erp'] = df
 
             if 'ho_outbound' not in dfs:
-                st.error("❌ File 'HO Outbound' / 'Daily HO' tidak ditemukan.")
+                st.error("❌ File 'HO Outbound' / 'Daily HO' tidak ditemukan. Pastikan nama file mengandung kata 'HO', 'Outbound', atau 'Daily'.")
                 st.stop()
             if 'order_summary' not in dfs:
                 st.error("❌ File 'Order Summary' tidak ditemukan.")
@@ -349,9 +349,7 @@ if execute_clicked:
             res['Brand'] = np.where(brand_is_na & is_platform_other, "SK", np.where(brand_is_na, "AceKid", res['Brand']))
             res['Brand 2'] = np.where(brand2_is_na & is_platform_other, "SK", np.where(brand2_is_na, "AceKid", res['Brand 2']))
 
-            # Konsisten Format Kolom Platform & Brand 2
             res['Platform & Brand 2'] = res['Platform'].fillna('').astype(str).str.strip() + " & " + res['Brand 2'].fillna('').astype(str).str.strip()
-
             res['Admin'] = current_admin
 
             # --- TAHAP 3: Kalkulasi Waktu & SLA (70%) ---
@@ -532,7 +530,7 @@ if execute_clicked:
             else:
                 res['Status'] = np.nan; res['total order amount'] = np.nan; res['Payment Menthood'] = 'Non COD'
 
-            # Mengisi kolom status yang kosong menjadi "Other" sesuai instruksi
+            # Otomatis isi status kosong menjadi 'Other'
             res['Status'] = res['Status'].apply(lambda x: 'Other' if pd.isna(x) or str(x).strip() in ['', 'nan', 'None'] else x)
 
             col_attach = ho_col_map.get('Attachment', None)
@@ -631,9 +629,6 @@ if execute_clicked:
             # Export Excel (Laporan_WMS & DB)
             output = BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                # ==========================================
-                # 1. SHEET UTAMA: Laporan_WMS
-                # ==========================================
                 final_df.to_excel(writer, index=False, sheet_name='Laporan_WMS')
                 workbook = writer.book
                 worksheet_wms = writer.sheets['Laporan_WMS']
@@ -656,36 +651,30 @@ if execute_clicked:
                     worksheet_wms.set_column(col_num, col_num, 16)
 
                 # ==========================================
-                # 2. SHEET BARU: DB (DASHBOARD SUMMARY)
+                # SHEET DB (DASHBOARD SUMMARY)
                 # ==========================================
                 worksheet_db = workbook.add_worksheet('DB')
-                
                 header_format_db = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1, 'align': 'center'})
                 cell_format_db = workbook.add_format({'border': 1, 'align': 'center'})
                 cell_format_left = workbook.add_format({'border': 1, 'align': 'left'})
                 black_divider = workbook.add_format({'bg_color': '#000000'})
                 
-                # --- A. Data Agregasi Brand ---
                 df_brand = final_df['Brand'].value_counts().reset_index()
                 df_brand.columns = ['Brand', 'Delivered']
                 df_brand.insert(0, 'No', range(1, len(df_brand) + 1))
                 df_brand['Target'] = 0 
                 
-                # --- B. Data Agregasi Kurir (Top 5) ---
                 df_kurir = final_df['Kurir'].value_counts().reset_index()
                 df_kurir.columns = ['Courier_Name', 'Total_Package']
                 df_kurir = df_kurir.head(5)
                 df_kurir.insert(0, 'No', range(1, len(df_kurir) + 1))
                 df_kurir['Ranking'] = range(1, len(df_kurir) + 1)
                 
-                # --- C. Data Status Manifest ---
                 df_status = final_df['Status Manifest'].replace('', 'Unknown').value_counts().reset_index()
                 df_status.columns = ['Status_Manifest', 'qty']
                 df_status.insert(0, 'No', range(1, len(df_status) + 1))
 
-                # --- D. KALKULASI METRIC SUMMARY (PENYESUAIAN TOTAL QTY) ---
-                
-                # 1. Target (Count unique Ref# dari file Order Summary Export OPEN)
+                # --- KALKULASI METRICS SUMMARY DENGAN PENCARIAN KOLOM AMAN ---
                 df_os_open = dfs.get('order_summary_open', dfs.get('order_summary', pd.DataFrame()))
                 col_ref_sum = next((c for c in df_os_open.columns if 'ref#' in c.lower()), None)
                 val_target = df_os_open[col_ref_sum].astype(str).str.strip().replace('', np.nan).replace('nan', np.nan).dropna().nunique() if col_ref_sum else 0
@@ -693,15 +682,11 @@ if execute_clicked:
                 val_delivered = len(final_df)
                 val_delivery_rate = round((val_delivered / val_target * 100), 2) if val_target > 0 else 0.0
 
-                # 2. pending_order (Total Qty dari kolom H di file Daily HO)
-                val_pending = 0
-                if dfs['ho_outbound'].shape[1] >= 8:
-                    try:
-                        col_h_data = dfs['ho_outbound'].iloc[:, 7]
-                        val_pending = int(pd.to_numeric(col_h_data.astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0).sum())
-                    except: pass
+                # PERBAIKAN 1: Deteksi Kolom H (pending_order) secara aman walau posisi kolom bergeser
+                raw_ho_df = dfs['ho_outbound']
+                col_h_name = next((c for c in raw_ho_df.columns if 'pending' in c.lower() or 'qty' in c.lower() or raw_ho_df.columns.get_loc(c) == 7), raw_ho_df.columns[min(7, len(raw_ho_df.columns)-1)])
+                val_pending = int(pd.to_numeric(raw_ho_df[col_h_name].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0).sum())
 
-                # 3. Avg Shipped & Avg Handover
                 def get_avg_time_str(series_hhmmss):
                     if series_hhmmss is None or series_hhmmss.empty:
                         return "00:00:00"
@@ -718,28 +703,28 @@ if execute_clicked:
                 val_avg_shipped = get_avg_time_str(final_df['Packing to Shipped Date']) if 'Packing to Shipped Date' in final_df.columns else "0:00:00"
                 val_avg_handover = get_avg_time_str(final_df['Shipped Date to Handover']) if 'Shipped Date to Handover' in final_df.columns else "0:00:00"
 
-                # 4. kurir_instan (Total Qty dari kolom F berdasarkan list kurir spesifik di kolom B)
+                # PERBAIKAN 2: Deteksi Kolom B & F (kurir_instan) dengan pencocokan teks fleksibel (case-insensitive)
                 val_kurir_instan = 0
-                if dfs['ho_outbound'].shape[1] >= 6:
+                if raw_ho_df.shape[1] >= 6:
                     try:
-                        col_b_str = dfs['ho_outbound'].iloc[:, 1].astype(str).str.strip().str.lower()
-                        col_f_val = dfs['ho_outbound'].iloc[:, 5]
+                        col_b_name = raw_ho_df.columns[1]
+                        col_f_name = raw_ho_df.columns[5]
+                        
+                        col_b_str = raw_ho_df[col_b_name].astype(str).str.strip().str.lower()
+                        col_f_val = raw_ho_df[col_f_name]
                         
                         target_kurir_texts = [
-                            "go-jek/grab/shopee instant", 
-                            "anteraja sameday (rit 1)", 
-                            "anteraja sameday (rit 2)", 
-                            "anteraja sameday (rit 3)", 
-                            "paxel ( rit 1 )", 
-                            "paxel ( rit 2 )", 
-                            "paxel ( rit 3 )"
+                            "go-jek/grab/shopee instant", "gojek", "grab", "shopee instant",
+                            "anteraja sameday (rit 1)", "anteraja sameday (rit 2)", "anteraja sameday (rit 3)", "anteraja sameday",
+                            "paxel ( rit 1 )", "paxel ( rit 2 )", "paxel ( rit 3 )", "paxel"
                         ]
                         
-                        mask_match = col_b_str.isin(target_kurir_texts)
+                        # Pencocokan parsial agar mendeteksi variasi teks penulisan rit kurir
+                        mask_match = col_b_str.apply(lambda x: any(t in x for t in target_kurir_texts))
                         val_kurir_instan = int(pd.to_numeric(col_f_val[mask_match].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0).sum())
                     except: pass
                 
-                # 5. Lookup Kategori Master untuk jc_enabler, jc_fulfilment, dan other
+                # PERBAIKAN 3: Lookup Kategori Master untuk jc_enabler, jc_fulfilment, other
                 master_df = dfs.get('master', pd.DataFrame())
                 master_cat_dict = {}
                 if not master_df.empty:
@@ -766,7 +751,6 @@ if execute_clicked:
                 val_jc_fulfilment = int(final_df['Master_Category'].str.lower().isin(['jet commerce fullfilment center', 'jet commerce fulfilment center']).sum())
                 val_other = int(final_df['Master_Category'].str.lower().eq('other').sum())
 
-                # 6. Tracking Lookup (Status -> tracking di file Master)
                 master_status_col = next((c for c in master_df.columns if 'online status' in c.lower() or c.lower() == 'status'), None)
                 master_track_col = next((c for c in master_df.columns if 'tracking' in c.lower()), None)
                 
@@ -783,7 +767,6 @@ if execute_clicked:
                 val_traceable = int(final_df['Master_Tracking'].eq('traceable').sum())
                 val_untraceable = int(final_df['Master_Tracking'].eq('untraceable').sum())
 
-                # Susunan Tabel Metrics
                 metrics_data = [
                     [1, "delivery_rate", val_delivery_rate, "Persentase delivery rate"],
                     [2, "delivered", f"{val_delivered:,}", "Total order di sheet Laporan_WMS"],
