@@ -207,7 +207,6 @@ st.markdown(custom_css, unsafe_allow_html=True)
 if 'saved_admin' not in st.session_state:
     st.session_state['saved_admin'] = "Admin Logistik"
 
-# Gunakan Container Kartu Modern untuk Header
 with st.container():
     st.markdown('<div class="modern-card">', unsafe_allow_html=True)
     
@@ -216,15 +215,14 @@ with st.container():
         st.markdown('<h1>🏢 Outbound Auto-Processor</h1>', unsafe_allow_html=True)
         st.markdown(f'<div class="meta-text">Selamat datang kembali! Perbarui nama Officer jika diperlukan sebelum memproses data.</div>', unsafe_allow_html=True)
 
-    # Panel Officer di dalam kartu header
     st.markdown('<div class="officer-panel">', unsafe_allow_html=True)
     col_adm1, col_adm2, col_date = st.columns([4, 2, 3])
     with col_adm1:
         st.markdown(f'<div class="meta-text" style="margin-bottom: 5px; color: #334155;">Officer Aktif:</div>', unsafe_allow_html=True)
         admin_input_temp = st.text_input("Admin", value=st.session_state['saved_admin'], label_visibility="collapsed", placeholder="Ketik nama Officer / Admin...")
     with col_adm2:
-        st.write("") # Spacer
-        st.write("") # Spacer
+        st.write("") 
+        st.write("") 
         submit_admin = st.button("Submit Nama ✍️", use_container_width=True)
     with col_date:
         st.markdown(f'<div class="meta-text" style="text-align: right; margin-top: 15px;">Hari ini: <span class="officer-name">{current_date}</span></div>', unsafe_allow_html=True)
@@ -251,7 +249,6 @@ with st.container():
 
     col_up1, col_up2 = st.columns([5, 1])
     with col_up1:
-        # Prompt visual kustom di dalam uploader
         st.markdown("""
             <div style="text-align: center; color: #2563eb; margin-bottom: -10px;">
                 <p style="font-size: 30px; margin-bottom: 5px;">📤</p>
@@ -339,7 +336,6 @@ with st.container():
                                 kur = str(row['Kurir']).strip() if pd.notna(row['Kurir']) else ""
                                 master_carrier_db[cc] = kur
 
-                        # Lookup Master Category (Platform & Brand 2)
                         m_pb2_col = next((c for c in df.columns if 'platform' in c.lower() and 'brand' in c.lower()), None)
                         m_plat_col = next((c for c in df.columns if c.lower().strip() == 'platform'), None)
                         m_b2_col = next((c for c in df.columns if 'brand' in c.lower() and ('2' in c or 'brand2' in c.lower())), None)
@@ -361,7 +357,6 @@ with st.container():
                                         master_category_map[f"{p_v}&{b_v}"] = cat_val
                                         master_category_map[(p_v, b_v)] = cat_val
 
-                    # --- REVISI PEMBACAAN FILE DAILY HO vs HO OUTBOUND ---
                     elif 'daily' in file_name:
                         dfs['daily_ho'] = df
                         
@@ -396,7 +391,6 @@ with st.container():
                     elif 'pack task' in file_name: dfs['pack_task'] = df
                     elif 'erp' in file_name: dfs['erp'] = df
 
-                # Validasi File Wajib
                 if 'ho_outbound' not in dfs:
                     st.error("❌ File 'HO Outbound' tidak ditemukan.")
                     st.stop()
@@ -787,7 +781,6 @@ with st.container():
                 final_df = final_df.rename(columns={'Admin_Akhir': 'Admin', 'Kurir_Akhir': 'Kurir'})
                 final_df = final_df.loc[:, ~final_df.columns.duplicated()]
 
-                # --- MAPPING MASTER TRACKING STATUS ---
                 master_df = dfs.get('master', pd.DataFrame())
                 master_status_col = next((c for c in master_df.columns if 'online status' in c.lower() or c.lower() == 'status'), None)
                 master_track_col = next((c for c in master_df.columns if 'tracking' in c.lower()), None)
@@ -805,7 +798,6 @@ with st.container():
                 final_df.insert(0, 'No', range(1, len(final_df) + 1))
                 st.session_state['processed_result'] = final_df
 
-                # Export Excel Laporan_WMS
                 output = BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                     df_to_export = final_df.drop(columns=['Master_Tracking'], errors='ignore')
@@ -832,7 +824,7 @@ with st.container():
                         worksheet_wms.set_column(col_num, col_num, 16)
 
                     # ==========================================
-                    # SHEET DB (DASHBOARD SUMMARY) - DENGAN PERBAIKAN LOGIKA
+                    # SHEET DB (DASHBOARD SUMMARY)
                     # ==========================================
                     worksheet_db = workbook.add_worksheet('DB')
                     header_format_db = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1, 'align': 'center'})
@@ -855,7 +847,6 @@ with st.container():
                     df_status.columns = ['Status_Manifest', 'qty']
                     df_status.insert(0, 'No', range(1, len(df_status) + 1))
 
-                    # 1. Delivery Rate Target
                     df_os_open = dfs.get('order_summary_open', dfs.get('order_summary', pd.DataFrame()))
                     col_ref_sum = next((c for c in df_os_open.columns if 'ref#' in c.lower()), None)
                     val_target = df_os_open[col_ref_sum].astype(str).str.strip().replace('', np.nan).replace('nan', np.nan).dropna().nunique() if col_ref_sum else 0
@@ -863,19 +854,28 @@ with st.container():
                     val_delivered = len(final_df)
                     val_delivery_rate = round((val_delivered / val_target * 100), 2) if val_target > 0 else 0.0
 
-                    # === REVISI: AMBIL DATA DARI DAILY HO ===
-                    raw_daily_df = dfs.get('daily_ho', pd.DataFrame())
+                    # === REVISI: AMBIL DATA DARI DAILY HO & FILTER BARIS TOTAL/SUMMARY ===
+                    raw_daily_df = dfs.get('daily_ho', pd.DataFrame()).copy()
 
-                    # 2. Pending Order (Prioritas kata 'cut off')
+                    # --- TAMBAHAN BARU: MENGHAPUS BARIS TOTAL/SUMMARY ---
+                    # Cek dan hapus baris yang berisi kata "Total" agar tidak dihitung ganda
+                    if not raw_daily_df.empty:
+                        col0 = raw_daily_df.columns[0]
+                        col1 = raw_daily_df.columns[1] if len(raw_daily_df.columns) > 1 else col0
+                        
+                        mask_total = raw_daily_df[col0].astype(str).str.lower().str.contains('total', na=False) | \
+                                     raw_daily_df[col1].astype(str).str.lower().str.contains('total', na=False)
+                        raw_daily_df = raw_daily_df[~mask_total]
+                    # ----------------------------------------------------
+
                     val_pending = 0
                     col_pending = next((c for c in raw_daily_df.columns if 'cut off' in c.lower()), None)
-                    if not col_pending: # Jika tidak ada 'cut off', cari 'pending'
+                    if not col_pending: 
                         col_pending = next((c for c in raw_daily_df.columns if 'pending' in c.lower()), None)
                     
                     if col_pending and not raw_daily_df.empty:
                         val_pending = int(pd.to_numeric(raw_daily_df[col_pending].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0).sum())
 
-                    # 3. Kurir Instan dari Daily HO
                     val_kurir_instan = 0
                     col_kurir = next((c for c in raw_daily_df.columns if any(k in c.lower() for k in ['kurir', 'carrier', 'expedisi', 'ekspedisi', 'logistics'])), None)
                     col_qty = next((c for c in raw_daily_df.columns if 'qty' in c.lower() and 'pending' not in c.lower()), None)
@@ -888,7 +888,6 @@ with st.container():
                         mask_instan = courier_series.str.contains(pattern, regex=True, na=False)
                         val_kurir_instan = int(qty_series[mask_instan].sum())
 
-                    # Average Times
                     def get_avg_time_str(series_hhmmss):
                         if series_hhmmss is None or series_hhmmss.empty:
                             return "0:00:00"
@@ -905,7 +904,6 @@ with st.container():
                     val_avg_shipped = get_avg_time_str(final_df['Packing to Shipped Date']) if 'Packing to Shipped Date' in final_df.columns else "0:00:00"
                     val_avg_handover = get_avg_time_str(final_df['Shipped Date to Handover']) if 'Shipped Date to Handover' in final_df.columns else "0:00:00"
 
-                    # 4. Lookup Kategori Eksklusif dari File Laporan Akhir (Berdasarkan Master)
                     def lookup_category_from_master(row):
                         pb2_val = str(row.get('Platform & Brand 2', '')).strip().upper()
                         p_val = str(row.get('Platform', '')).strip().upper()
@@ -927,7 +925,6 @@ with st.container():
                     val_jc_fulfilment = int(mask_fulfilment.sum())
                     val_other = int((~mask_enabler & ~mask_fulfilment).sum())
 
-                    # Status Tracking
                     val_traceable = int(final_df['Master_Tracking'].eq('traceable').sum())
                     val_untraceable = int(final_df['Master_Tracking'].eq('untraceable').sum())
 
@@ -1005,7 +1002,6 @@ if 'processed_result' in st.session_state:
         st.markdown('<div class="modern-card">', unsafe_allow_html=True)
         st.markdown('<h3>📊 Preview Hasil Data Outbound</h3>', unsafe_allow_html=True)
 
-        # Notifikasi Sukses
         st.markdown(f"""
             <div class="result-notif result-success">
                 ✅ Berhasil memproses total {len(res_df):,} baris data! Laporan siap diunduh.
@@ -1017,7 +1013,6 @@ if 'processed_result' in st.session_state:
             untraceable_count = len(untraceable_data)
             
             if untraceable_count > 0:
-                # Peringatan Untraceable
                 st.markdown(f"""
                     <div class="result-notif result-warning">
                         ⚠️ **PERINGATAN DATA UNTRACEABLE:** Ditemukan **{untraceable_count}** paket dengan status **Untraceable**!
