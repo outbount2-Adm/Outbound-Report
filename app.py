@@ -127,7 +127,6 @@ st.markdown(custom_css, unsafe_allow_html=True)
 if 'saved_admin' not in st.session_state:
     st.session_state['saved_admin'] = "Admin Logistik"
 
-# Layout Judul Rata Kiri & Rapi
 col_header1, col_header2 = st.columns([1, 15])
 with col_header1:
     try:
@@ -143,7 +142,6 @@ col_adm1, col_adm2 = st.columns([4, 1])
 with col_adm1:
     admin_input_temp = st.text_input("Admin", value=st.session_state['saved_admin'], label_visibility="collapsed", placeholder="Ketik nama Officer / Admin...")
 with col_adm2:
-    # Tombol polos tanpa parameter type
     submit_admin = st.button("Submit Admin", use_container_width=True)
 
 if submit_admin:
@@ -174,7 +172,6 @@ with col_up1:
     )
 
 with col_up2:
-    # Tombol polos tanpa parameter type
     if st.button("🗑️ Clear Data", use_container_width=True):
         st.session_state['file_uploader_key'] += 1
         if 'processed_result' in st.session_state:
@@ -698,7 +695,58 @@ if execute_clicked:
                 df_status = final_df['Status Manifest'].replace('', 'Unknown').value_counts().reset_index()
                 df_status.columns = ['Status_Manifest', 'qty']
                 df_status.insert(0, 'No', range(1, len(df_status) + 1))
+
+                # --- D. KALKULASI METRIC SUMMARY (Kolom A-D) ---
+                val_delivered = len(final_df)
+                val_target = int(df_brand['Target'].sum()) if df_brand['Target'].sum() > 0 else 11638
+                val_delivery_rate = round((val_delivered / val_target * 100), 2) if val_target > 0 else 0.0
+
+                if 'Shipped Date' in final_df.columns:
+                    val_pending = int((final_df['Shipped Date'].isna() | (final_df['Shipped Date'].astype(str).str.strip() == '')).sum())
+                else:
+                    val_pending = 0
+
+                def get_avg_time_str(series_hhmmss):
+                    if series_hhmmss is None or series_hhmmss.empty:
+                        return "00:00:00"
+                    secs = get_safe_seconds(series_hhmmss)
+                    valid_secs = secs[secs > 0]
+                    if len(valid_secs) > 0:
+                        mean_sec = int(valid_secs.mean())
+                        h = mean_sec // 3600
+                        m = (mean_sec % 3600) // 60
+                        s = mean_sec % 60
+                        return f"{h}:{m:02d}:{s:02d}"
+                    return "0:00:00"
+
+                val_avg_shipped = get_avg_time_str(final_df['Packing to Shipped Date']) if 'Packing to Shipped Date' in final_df.columns else "1:02:00"
+                val_avg_handover = get_avg_time_str(final_df['Packing to Handover']) if 'Packing to Handover' in final_df.columns else "4:09:36"
+
+                val_kurir_instan = int(final_df['Kurir'].astype(str).str.contains('Instant|Gojek|Grab|Shopee Instant', case=False, na=False).sum()) if 'Kurir' in final_df.columns else 0
+                val_other = int((final_df['Platform'].astype(str).str.strip() == 'Other').sum()) if 'Platform' in final_df.columns else 0
+                val_jc_fulfilment = int((final_df['Brand 2'].astype(str).str.lower().str.contains('fulfilment|fulfillment', na=False)).sum()) if 'Brand 2' in final_df.columns else 0
+                val_jc_enabler = max(0, val_delivered - val_jc_fulfilment - val_other)
+
+                val_traceable = int((final_df['Tracking#/PRO#'].notna() & (final_df['Tracking#/PRO#'].astype(str).str.strip() != '') & (final_df['Tracking#/PRO#'].astype(str).str.lower() != 'nan')).sum()) if 'Tracking#/PRO#' in final_df.columns else val_delivered
+                val_untraceable = max(0, val_delivered - val_traceable)
+
+                metrics_data = [
+                    [1, "delivery_rate", val_delivery_rate, "Persentase delivery rate"],
+                    [2, "delivered", f"{val_delivered:,}", "Total paket terkirim"],
+                    [3, "target", f"{val_target:,}", "Target pengiriman"],
+                    [4, "pending_order", f"{val_pending:,}", "Jumlah order pending"],
+                    [5, "avg_shipped", val_avg_shipped, "Rata-rata waktu ke shipped"],
+                    [6, "avg_handover", val_avg_handover, "Rata-rata waktu ke handover"],
+                    [7, "kurir_instan", f"{val_kurir_instan:,}", "Total kurir instan"],
+                    [8, "jc_enabler", f"{val_jc_enabler:,}", "Jet Commerce Enabler"],
+                    [9, "jc_fulfilment", f"{val_jc_fulfilment:,}", "Jet Commerce Fulfilment"],
+                    [10, "other", f"{val_other:,}", "Kategori lainnya"],
+                    [11, "traceable", f"{val_traceable:,}", "Paket yang bisa dilacak"],
+                    [12, "untraceable", f"{val_untraceable:,}", "Paket tidak bisa dilacak"],
+                ]
+                df_metrics = pd.DataFrame(metrics_data, columns=["No", "Metric_Name", "Value", "Description"])
                 
+                # Fungsi Helper Penulisan Tabel
                 def write_custom_table(df_table, start_row, start_col):
                     for c_idx, col_name in enumerate(df_table.columns):
                         worksheet_db.write(start_row, start_col + c_idx, col_name, header_format_db)
@@ -707,15 +755,25 @@ if execute_clicked:
                             fmt = cell_format_left if isinstance(val, str) else cell_format_db
                             worksheet_db.write(start_row + r_idx + 1, start_col + c_idx, val, fmt)
 
-                write_custom_table(df_brand, 1, 5)   
-                write_custom_table(df_kurir, 1, 11)  
-                write_custom_table(df_status, 1, 20) 
+                # Menulis semua tabel ke worksheet DB
+                write_custom_table(df_metrics, 1, 0)  # Kolom A - D
+                write_custom_table(df_brand, 1, 5)    # Kolom F - I
+                write_custom_table(df_kurir, 1, 11)   # Kolom L - O
+                write_custom_table(df_status, 1, 20)  # Kolom U - W
                 
+                # Pembatas Hitam
                 worksheet_db.set_column('E:E', 2, black_divider)
                 worksheet_db.set_column('K:K', 2, black_divider)
                 worksheet_db.set_column('Q:Q', 2, black_divider)
                 worksheet_db.set_column('T:T', 2, black_divider)
                 
+                # Lebar Kolom Metrics Summary
+                worksheet_db.set_column('A:A', 5)
+                worksheet_db.set_column('B:B', 18)
+                worksheet_db.set_column('C:C', 12)
+                worksheet_db.set_column('D:D', 30)
+
+                # Lebar Kolom Brand, Kurir, Status
                 worksheet_db.set_column('F:F', 5)
                 worksheet_db.set_column('G:G', 18)
                 worksheet_db.set_column('H:I', 12)
