@@ -255,8 +255,8 @@ with st.container():
                         m_cat_col = next((c for c in df.columns if any(k in c.lower() for k in ['category', 'kategori', 'segment']) and c.lower() != 'sales channel'), None)
                         m_brand_ref = next((c for c in df.columns if any(k in c.lower() for k in ['brand 2', 'brand2'])), None)
                         
-                        platform_cols = [c for c in df.columns if c.lower().strip() == 'platform' or c.lower().strip() == 'platform.1']
-                        m_plat_ref = platform_cols[-1] if len(platform_cols) > 0 else None
+                        platform_cols = [c for c in df.columns if c.lower().strip() == 'platform']
+                        m_plat_ref = platform_cols[-1] if len(platform_cols) > 0 else (platform_cols[0] if len(platform_cols) == 0 else None)
 
                         if m_cat_col and m_brand_ref and m_plat_ref:
                             df_cat_subset = df[[m_plat_ref, m_brand_ref, m_cat_col]].dropna(subset=[m_cat_col])
@@ -805,7 +805,7 @@ with st.container():
                     val_avg_shipped = get_avg_time_str(final_df['Packing to Shipped Date']) if 'Packing to Shipped Date' in final_df.columns else "0:00:00"
                     val_avg_handover = get_avg_time_str(final_df['Shipped Date to Handover']) if 'Shipped Date to Handover' in final_df.columns else "0:00:00"
 
-                    # --- XLOOKUP KATEGORI 2 KRITERIA (Platform & Brand 2) ---
+                    # --- XLOOKUP KATEGORI 2 KRITERIA (Platform & Brand 2) DENGAN PENCARIAN KETAT ---
                     def lookup_category_from_master(row):
                         p_val = str(row.get('Platform', '')).strip().upper()
                         b2_val = str(row.get('Brand 2', '')).strip().upper()
@@ -819,10 +819,8 @@ with st.container():
                             return master_category_map[key_comb2]
                         elif (p_val, b2_val) in master_category_map:
                             return master_category_map[(p_val, b2_val)]
-                        elif p_val in master_category_map:
-                            return master_category_map[p_val]
                         
-                        # Fallback aman berdasarkan Brand 2 jika kombinasi platform tidak ada persis
+                        # Fallback aman berdasarkan Brand 2 saja jika kombinasi platform spesifik tidak ditemukan
                         for k, mcat in master_category_map.items():
                             if isinstance(k, tuple) and len(k) == 2 and k[1] == b2_val:
                                 return mcat
@@ -838,7 +836,7 @@ with st.container():
 
                     val_jc_enabler = int(mask_enabler.sum())
                     val_jc_fulfilment = int(mask_fulfilment.sum())
-                    val_other = int(mask_other.sum())  # <-- Menghasilkan 26 sesuai data master
+                    val_other = int(mask_other.sum())  # <-- Akurat sesuai referensi data master
 
                     val_traceable = int(final_df['Master_Tracking'].eq('traceable').sum())
                     val_untraceable = int(final_df['Master_Tracking'].eq('untraceable').sum())
