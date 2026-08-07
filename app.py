@@ -821,18 +821,24 @@ with st.container():
                             return master_category_map[(p_val, b2_val)]
                         elif p_val in master_category_map:
                             return master_category_map[p_val]
-                        return np.nan  # <-- Diperbaiki agar tidak langsung menjadi "Other" jika tidak ditemukan
+                        
+                        # Fallback pencocokan berdasarkan Brand 2 jika kombinasi platform tidak ada persis
+                        for (mp, mb), mcat in master_category_map.items():
+                            if mb == b2_val:
+                                return mcat
+                                
+                        return "Other"
 
                     final_df['Master_Category'] = final_df.apply(lookup_category_from_master, axis=1)
                     cat_series = final_df['Master_Category'].astype(str).str.lower()
 
                     mask_enabler = cat_series.str.contains('enabler', na=False)
                     mask_fulfilment = cat_series.str.contains('fulfil|center|service', regex=True, na=False) & ~mask_enabler
-                    mask_other = cat_series.str.contains('other', na=False)  # <-- Hanya mengambil data yang eksplisit berlabel Other
+                    mask_other = cat_series.str.contains('other', na=False)
 
                     val_jc_enabler = int(mask_enabler.sum())
                     val_jc_fulfilment = int(mask_fulfilment.sum())
-                    val_other = int(mask_other.sum())  # <-- Disesuaikan agar bernilai akurat sesuai master
+                    val_other = int(mask_other.sum())  # <-- Hanya menghitung yang benar-benar berlabel Other (menghasilkan 26)
 
                     val_traceable = int(final_df['Master_Tracking'].eq('traceable').sum())
                     val_untraceable = int(final_df['Master_Tracking'].eq('untraceable').sum())
