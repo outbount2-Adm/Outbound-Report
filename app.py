@@ -822,9 +822,9 @@ with st.container():
                         elif p_val in master_category_map:
                             return master_category_map[p_val]
                         
-                        # Fallback pencocokan berdasarkan Brand 2 jika kombinasi platform tidak ada persis
-                        for (mp, mb), mcat in master_category_map.items():
-                            if mb == b2_val:
+                        # Fallback aman berdasarkan Brand 2 jika kombinasi platform tidak ada persis
+                        for k, mcat in master_category_map.items():
+                            if isinstance(k, tuple) and len(k) == 2 and k[1] == b2_val:
                                 return mcat
                                 
                         return "Other"
@@ -838,7 +838,7 @@ with st.container():
 
                     val_jc_enabler = int(mask_enabler.sum())
                     val_jc_fulfilment = int(mask_fulfilment.sum())
-                    val_other = int(mask_other.sum())  # <-- Hanya menghitung yang benar-benar berlabel Other (menghasilkan 26)
+                    val_other = int(mask_other.sum())  # <-- Menghasilkan 26 sesuai data master
 
                     val_traceable = int(final_df['Master_Tracking'].eq('traceable').sum())
                     val_untraceable = int(final_df['Master_Tracking'].eq('untraceable').sum())
