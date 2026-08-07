@@ -558,7 +558,7 @@ with st.container():
                 res['Packing to Shipped Date'] = format_timedelta_hhmmss(to_dt('Shipped Date') - to_dt('Packing Complete'))
                 res['Packing to Handover'] = format_timedelta_hhmmss(to_dt('Handover Date') - to_dt('Packing Complete'))
                 res['Shipped Date to Handover'] = format_timedelta_hhmmss(to_dt('Handover Date') - to_dt('Shipped Date'))
-                res['End Ship Date to Shipped Date'] = format_timedelta_hhmmss(to_dt('End Ship Date') - to_dt('Shipped Date'))
+                res['End Ship Date to Shpped Date'] = format_timedelta_hhmmss(to_dt('End Ship Date') - to_dt('Shipped Date'))
 
                 col_city = next((c for c in res.columns if 'ship to city' in c.lower()), None)
                 col_prov = next((c for c in res.columns if 'ship to st' in c.lower() or 'prov' in c.lower()), None)
@@ -821,17 +821,18 @@ with st.container():
                             return master_category_map[(p_val, b2_val)]
                         elif p_val in master_category_map:
                             return master_category_map[p_val]
-                        return "Other"
+                        return np.nan  # <-- Diperbaiki agar tidak langsung menjadi "Other" jika tidak ditemukan
 
                     final_df['Master_Category'] = final_df.apply(lookup_category_from_master, axis=1)
                     cat_series = final_df['Master_Category'].astype(str).str.lower()
 
                     mask_enabler = cat_series.str.contains('enabler', na=False)
                     mask_fulfilment = cat_series.str.contains('fulfil|center|service', regex=True, na=False) & ~mask_enabler
+                    mask_other = cat_series.str.contains('other', na=False)  # <-- Hanya mengambil data yang eksplisit berlabel Other
 
                     val_jc_enabler = int(mask_enabler.sum())
                     val_jc_fulfilment = int(mask_fulfilment.sum())
-                    val_other = int((~mask_enabler & ~mask_fulfilment).sum())
+                    val_other = int(mask_other.sum())  # <-- Disesuaikan agar bernilai akurat sesuai master
 
                     val_traceable = int(final_df['Master_Tracking'].eq('traceable').sum())
                     val_untraceable = int(final_df['Master_Tracking'].eq('untraceable').sum())
