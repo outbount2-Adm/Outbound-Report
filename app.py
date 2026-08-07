@@ -805,24 +805,32 @@ with st.container():
                     val_avg_shipped = get_avg_time_str(final_df['Packing to Shipped Date']) if 'Packing to Shipped Date' in final_df.columns else "0:00:00"
                     val_avg_handover = get_avg_time_str(final_df['Shipped Date to Handover']) if 'Shipped Date to Handover' in final_df.columns else "0:00:00"
 
-                    # --- XLOOKUP KATEGORI 2 KRITERIA (Platform & Brand 2) DENGAN PENCARIAN KETAT ---
+                    # --- XLOOKUP KATEGORI 2 KRITERIA (Platform & Brand 2) DENGAN TOLERANSI PENCOCOKAN ---
+                    plat_col_ref = [c for c in dfs['master'].columns if c.lower() == 'platform'][-1]
+                    brand2_col_ref = [c for c in dfs['master'].columns if 'brand 2' in c.lower() or c.lower() == 'brand2'][-1]
+                    cat_col_ref = [c for c in dfs['master'].columns if 'category' in c.lower() or c.lower() == 'kategori' in c.lower()][-1]
+                    subset_master_ref = dfs['master'][[plat_col_ref, brand2_col_ref, cat_col_ref]].dropna(subset=[cat_col_ref])
+
+                    master_category_map = {}
+                    for _, row in subset_master_ref.iterrows():
+                        p_v = str(row[plat_col_ref]).strip().upper()
+                        b_v = str(row[brand2_col_ref]).strip().upper()
+                        cat_v = str(row[cat_col_ref]).strip()
+                        master_category_map[(p_v, b_v)] = cat_v
+
                     def lookup_category_from_master(row):
                         p_val = str(row.get('Platform', '')).strip().upper()
                         b2_val = str(row.get('Brand 2', '')).strip().upper()
                         
-                        key_comb1 = f"{p_val} & {b2_val}"
-                        key_comb2 = f"{p_val}&{b2_val}"
-                        
-                        if key_comb1 in master_category_map:
-                            return master_category_map[key_comb1]
-                        elif key_comb2 in master_category_map:
-                            return master_category_map[key_comb2]
-                        elif (p_val, b2_val) in master_category_map:
+                        if (p_val, b2_val) in master_category_map:
                             return master_category_map[(p_val, b2_val)]
                         
-                        # Fallback aman berdasarkan Brand 2 saja jika kombinasi platform spesifik tidak ditemukan
-                        for k, mcat in master_category_map.items():
-                            if isinstance(k, tuple) and len(k) == 2 and k[1] == b2_val:
+                        for (mp, mb), mcat in master_category_map.items():
+                            if mb == b2_val and (mp in p_val or p_val in mp):
+                                return mcat
+                                
+                        for (mp, mb), mcat in master_category_map.items():
+                            if mb == b2_val:
                                 return mcat
                                 
                         return "Other"
