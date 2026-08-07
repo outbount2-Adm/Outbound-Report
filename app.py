@@ -221,7 +221,6 @@ with st.container():
                 dfs = {}
                 master_store_db = {}
                 master_carrier_db = {}
-                master_category_map = {}
                 
                 for file in uploaded_files:
                     file_name = file.name.lower()
@@ -250,24 +249,6 @@ with st.container():
                                 cc = str(row['carrierCode']).strip()
                                 kur = str(row['Kurir']).strip() if pd.notna(row['Kurir']) else ""
                                 master_carrier_db[cc] = kur
-
-                        # --- PEMBACAAN TABEL KATEGORI KANAN (XLOOKUP 2 KRITERIA) ---
-                        m_cat_col = next((c for c in df.columns if any(k in c.lower() for k in ['category', 'kategori', 'segment']) and c.lower() != 'sales channel'), None)
-                        m_brand_ref = next((c for c in df.columns if any(k in c.lower() for k in ['brand 2', 'brand2'])), None)
-                        
-                        platform_cols = [c for c in df.columns if c.lower().strip() == 'platform']
-                        m_plat_ref = platform_cols[-1] if len(platform_cols) > 0 else (platform_cols[0] if len(platform_cols) == 0 else None)
-
-                        if m_cat_col and m_brand_ref and m_plat_ref:
-                            df_cat_subset = df[[m_plat_ref, m_brand_ref, m_cat_col]].dropna(subset=[m_cat_col])
-                            for _, row in df_cat_subset.iterrows():
-                                cat_val = str(row[m_cat_col]).strip() if pd.notna(row[m_cat_col]) else "Other"
-                                p_v = str(row[m_plat_ref]).strip().upper()
-                                b_v = str(row[m_brand_ref]).strip().upper()
-                                
-                                master_category_map[f"{p_v} & {b_v}"] = cat_val
-                                master_category_map[f"{p_v}&{b_v}"] = cat_val
-                                master_category_map[(p_v, b_v)] = cat_val
 
                     elif 'daily' in file_name:
                         dfs['daily_ho'] = df
@@ -805,52 +786,78 @@ with st.container():
                     val_avg_shipped = get_avg_time_str(final_df['Packing to Shipped Date']) if 'Packing to Shipped Date' in final_df.columns else "0:00:00"
                     val_avg_handover = get_avg_time_str(final_df['Shipped Date to Handover']) if 'Shipped Date to Handover' in final_df.columns else "0:00:00"
 
-                    # --- XLOOKUP KATEGORI 2 KRITERIA (Platform & Brand 2) DENGAN PENGECUALIAN OTHER = 26 ---
-                    plat_col_ref = [c for c in dfs['master'].columns if c.lower() == 'platform'][-1]
-                    brand2_col_ref = [c for c in dfs['master'].columns if 'brand 2' in c.lower() or c.lower() == 'brand2'][-1]
-                    cat_col_ref = [c for c in dfs['master'].columns if 'category' in c.lower() or c.lower() == 'kategori' in c.lower()][-1]
-                    subset_master_ref = dfs['master'][[plat_col_ref, brand2_col_ref, cat_col_ref]].dropna(subset=[cat_col_ref])
-
-                    master_category_map = {}
-                    for _, row in subset_master_ref.iterrows():
-                        p_raw = row[plat_col_ref]
-                        p_v = "" if pd.isna(p_raw) else str(p_raw).strip().upper()
-                        b_v = str(row[brand2_col_ref]).strip().upper()
-                        cat_v = str(row[cat_col_ref]).strip()
-                        master_category_map[(p_v, b_v)] = cat_v
-
-                    def lookup_category_from_master(row):
-                        p_val = str(row.get('Platform', '')).strip().upper()
-                        b2_val = str(row.get('Brand 2', '')).strip().upper()
+                    # --- EVALUASI KONDISI IF BERTINGKAT (PLATFORM & BRAND 2) ---
+                    def lookup_kondisi_rule(row):
+                        p = str(row.get('Platform', '')).strip().upper()
+                        b = str(row.get('Brand 2', '')).strip()
                         
-                        if (p_val, b2_val) in master_category_map:
-                            cat = master_category_map[(p_val, b2_val)]
-                            if cat.lower() == 'other' and b2_val in ['ACEKID', 'SK'] and p_val not in ['WEBSTORE', 'OTHER']:
-                                return "Jet Commerce Enabler"
-                            return cat
-                        
-                        if b2_val in ['ACEKID', 'SK'] and p_val in ['WEBSTORE', 'OTHER']:
-                            return "Other"
+                        if p == 'TIKTOK':
+                            if b == 'Firda': return 'Jet Commerce Fulfillment Center'
+                            elif b == 'Whiskas': return 'Jet Commerce Enabler'
+                            elif b == "Mama's Choice": return 'Jet Commerce Fulfillment Center'
+                            elif b == 'Makuku': return 'Jet Commerce Enabler'
+                            elif b == 'Colgate': return 'Jet Commerce Enabler'
+                            elif b == 'MattelShop': return 'Jet Commerce Enabler'
+                            elif b == 'Senka': return 'Jet Commerce Enabler'
+                            elif b == 'Fisher Price': return 'Jet Commerce Enabler'
+                            elif b == 'Hotwheels': return 'Jet Commerce Enabler'
+                            elif b == 'Dojako': return 'Jet Commerce Fulfillment Center'
+                            elif b == 'Biolage': return 'Jet Commerce Enabler'
+                            elif b == 'Oppo': return 'Jet Commerce Enabler'
+                            elif b == 'Comfee': return 'Jet Commerce Enabler'
+                            elif b == 'Gaabor': return 'Jet Commerce Fulfillment Service'
+                            elif b == "L'oreal": return 'Jet Commerce Fulfillment Center'
+                            elif b == 'AceKid': return 'Jet Commerce Enabler'
+                            elif b == 'Barbie': return 'Jet Commerce Enabler'
+                            elif b == 'Oppo IOT': return 'Jet Commerce Enabler'
+                            elif b == 'Thomas': return 'Jet Commerce Enabler'
+                        elif p == 'SHOPEE':
+                            if b == 'Thomas': return 'Jet Commerce Enabler'
+                            elif b == 'MattelShop': return 'Jet Commerce Enabler'
+                            elif b == 'Senka': return 'Jet Commerce Enabler'
+                            elif b == 'Gaabor': return 'Jet Commerce Fulfillment Service'
+                            elif b == 'Whiskas': return 'Jet Commerce Enabler'
+                            elif b == 'Pedigree': return 'Jet Commerce Enabler'
+                            elif b == 'Hotwheels': return 'Jet Commerce Enabler'
+                            elif b == 'Makuku': return 'Jet Commerce Enabler'
+                            elif b == 'Firda': return 'Jet Commerce Fulfillment Center'
+                            elif b == 'Fisher Price': return 'Jet Commerce Enabler'
+                            elif b == 'Dojako': return 'Jet Commerce Fulfillment Center'
+                            elif b == 'Oppo': return 'Jet Commerce Enabler'
+                            elif b == 'AceKid': return 'Jet Commerce Enabler'
+                            elif b == 'Comfee': return 'Jet Commerce Enabler'
+                            elif b == 'Yoboo': return 'Jet Commerce Enabler'
+                            elif b == 'Barbie': return 'Jet Commerce Enabler'
+                        elif p == 'AKULAKU':
+                            if b == 'Oppo': return 'Jet Commerce Enabler'
+                            elif b == 'Gaabor': return 'Jet Commerce Fulfillment Service'
+                        elif p == 'LAZADA':
+                            if b == 'Oppo': return 'Jet Commerce Enabler'
+                            elif b == 'Makuku': return 'Jet Commerce Enabler'
+                            elif b == 'Colgate': return 'Jet Commerce Enabler'
+                            elif b == 'Senka': return 'Jet Commerce Enabler'
+                            elif b == "Mama's Choice": return 'Jet Commerce Fulfillment Center'
+                        elif p == 'BLIBLI':
+                            if b == 'MattelShop': return 'Jet Commerce Enabler'
+                            elif b == 'Oppo': return 'Jet Commerce Enabler'
+                        elif p == 'WEBSTORE':
+                            if b == 'AceKid': return 'Other'
+                            
+                        if b == 'SK':
+                            return 'Other'
+                            
+                        return 'Other'
 
-                        if b2_val in ['ACEKID', 'SK'] and p_val not in ['WEBSTORE', 'OTHER']:
-                            return "Jet Commerce Enabler"
-
-                        for (mp, mb), mcat in master_category_map.items():
-                            if mb == b2_val and (mp == "" or mp == "NAN") and mcat.lower() != 'other':
-                                return mcat
-                                
-                        return "Other"
-
-                    final_df['Master_Category'] = final_df.apply(lookup_category_from_master, axis=1)
+                    final_df['Master_Category'] = final_df.apply(lookup_kondisi_rule, axis=1)
                     cat_series = final_df['Master_Category'].astype(str).str.lower()
 
                     mask_enabler = cat_series.str.contains('enabler', na=False)
                     mask_fulfilment = cat_series.str.contains('fulfil|center|service', regex=True, na=False) & ~mask_enabler
-                    mask_other = cat_series.str.contains('other', na=False)
+                    mask_other = cat_series.str.contains('other', na=False) | ~(mask_enabler | mask_fulfilment)
 
                     val_jc_enabler = int(mask_enabler.sum())
                     val_jc_fulfilment = int(mask_fulfilment.sum())
-                    val_other = int(mask_other.sum())  # <-- Menghasilkan persis 26 baris Other
+                    val_other = int(mask_other.sum())
 
                     val_traceable = int(final_df['Master_Tracking'].eq('traceable').sum())
                     val_untraceable = int(final_df['Master_Tracking'].eq('untraceable').sum())
@@ -863,9 +870,9 @@ with st.container():
                         [5, "avg_shipped", val_avg_shipped, "AVG Laporan_WMS Packing to Shipped Date"],
                         [6, "avg_handover", val_avg_handover, "AVG Laporan_WMS Shipped Date to Handover"],
                         [7, "kurir_instan", f"{val_kurir_instan:,}", "Total Deliveree Qty kriteria kurir instan"],
-                        [8, "jc_enabler", f"{val_jc_enabler:,}", "Lookup Master: Jet Commerce Enabler"],
-                        [9, "jc_fulfilment", f"{val_jc_fulfilment:,}", "Lookup Master: Jet Commerce Fulfillment Center / Service"],
-                        [10, "other", f"{val_other:,}", "Lookup Master: Kategori lainnya"],
+                        [8, "jc_enabler", f"{val_jc_enabler:,}", "Kondisi Rule: Jet Commerce Enabler"],
+                        [9, "jc_fulfilment", f"{val_jc_fulfilment:,}", "Kondisi Rule: Jet Commerce Fulfillment Center / Service"],
+                        [10, "other", f"{val_other:,}", "Kondisi Rule: Other"],
                         [11, "traceable", f"{val_traceable:,}", "Lookup Status: Paket traceable"],
                         [12, "untraceable", f"{val_untraceable:,}", "Lookup Status: Paket untraceable"],
                     ]
