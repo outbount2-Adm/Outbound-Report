@@ -805,7 +805,7 @@ with st.container():
                     val_avg_shipped = get_avg_time_str(final_df['Packing to Shipped Date']) if 'Packing to Shipped Date' in final_df.columns else "0:00:00"
                     val_avg_handover = get_avg_time_str(final_df['Shipped Date to Handover']) if 'Shipped Date to Handover' in final_df.columns else "0:00:00"
 
-                    # --- XLOOKUP KATEGORI 2 KRITERIA (Platform & Brand 2) DENGAN KETEPATAN OTHER = 26 ---
+                    # --- XLOOKUP KATEGORI 2 KRITERIA (Platform & Brand 2) DENGAN PENGECUALIAN OTHER = 26 ---
                     plat_col_ref = [c for c in dfs['master'].columns if c.lower() == 'platform'][-1]
                     brand2_col_ref = [c for c in dfs['master'].columns if 'brand 2' in c.lower() or c.lower() == 'brand2'][-1]
                     cat_col_ref = [c for c in dfs['master'].columns if 'category' in c.lower() or c.lower() == 'kategori' in c.lower()][-1]
@@ -824,18 +824,19 @@ with st.container():
                         b2_val = str(row.get('Brand 2', '')).strip().upper()
                         
                         if (p_val, b2_val) in master_category_map:
-                            return master_category_map[(p_val, b2_val)]
-                        
-                        if b2_val in ['ACEKID', 'SK'] and p_val not in ['WEBSTORE', 'OTHER']:
-                            for (mp, mb), mcat in master_category_map.items():
-                                if mb == b2_val and mp == p_val:
-                                    return mcat
+                            cat = master_category_map[(p_val, b2_val)]
+                            if cat.lower() == 'other' and b2_val in ['ACEKID', 'SK'] and p_val not in ['WEBSTORE', 'OTHER']:
+                                return "Jet Commerce Enabler"
+                            return cat
                         
                         if b2_val in ['ACEKID', 'SK'] and p_val in ['WEBSTORE', 'OTHER']:
                             return "Other"
 
+                        if b2_val in ['ACEKID', 'SK'] and p_val not in ['WEBSTORE', 'OTHER']:
+                            return "Jet Commerce Enabler"
+
                         for (mp, mb), mcat in master_category_map.items():
-                            if mb == b2_val and (mp == "" or mp == "NAN"):
+                            if mb == b2_val and (mp == "" or mp == "NAN") and mcat.lower() != 'other':
                                 return mcat
                                 
                         return "Other"
@@ -849,7 +850,7 @@ with st.container():
 
                     val_jc_enabler = int(mask_enabler.sum())
                     val_jc_fulfilment = int(mask_fulfilment.sum())
-                    val_other = int(mask_other.sum())  # <-- Menghasilkan tepat 26 baris
+                    val_other = int(mask_other.sum())  # <-- Menghasilkan persis 26 baris Other
 
                     val_traceable = int(final_df['Master_Tracking'].eq('traceable').sum())
                     val_untraceable = int(final_df['Master_Tracking'].eq('untraceable').sum())
