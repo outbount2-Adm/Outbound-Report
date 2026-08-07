@@ -251,14 +251,12 @@ with st.container():
                                 kur = str(row['Kurir']).strip() if pd.notna(row['Kurir']) else ""
                                 master_carrier_db[cc] = kur
 
-                        # --- PERBAIKAN PEMBACAAN TABEL KATEGORI KANAN (Platform & Brand 2) ---
-                        # Mencari kolom kategori dan tabel referensi di sebelah kanan (Platform.1 / Platform & Brand 2)
+                        # --- PEMBACAAN TABEL KATEGORI KANAN (XLOOKUP 2 KRITERIA) ---
                         m_cat_col = next((c for c in df.columns if any(k in c.lower() for k in ['category', 'kategori', 'segment']) and c.lower() != 'sales channel'), None)
                         m_brand_ref = next((c for c in df.columns if any(k in c.lower() for k in ['brand 2', 'brand2'])), None)
                         
-                        # Cari kolom Platform yang ada di tabel kanan (bisa bernama Platform.1 atau kolom Platform kedua)
                         platform_cols = [c for c in df.columns if c.lower().strip() == 'platform' or c.lower().strip() == 'platform.1']
-                        m_plat_ref = platform_cols[-1] if len(platform_cols) > 0 else None # Ambil yang di sebelah kanan
+                        m_plat_ref = platform_cols[-1] if len(platform_cols) > 0 else None
 
                         if m_cat_col and m_brand_ref and m_plat_ref:
                             df_cat_subset = df[[m_plat_ref, m_brand_ref, m_cat_col]].dropna(subset=[m_cat_col])
