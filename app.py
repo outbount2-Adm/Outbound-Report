@@ -786,56 +786,36 @@ with st.container():
                     val_avg_shipped = get_avg_time_str(final_df['Packing to Shipped Date']) if 'Packing to Shipped Date' in final_df.columns else "0:00:00"
                     val_avg_handover = get_avg_time_str(final_df['Shipped Date to Handover']) if 'Shipped Date to Handover' in final_df.columns else "0:00:00"
 
-                    # --- EVALUASI KONDISI IF BERTINGKAT (PLATFORM & BRAND 2) ---
+                    # --- EVALUASI KONDISI IF BERTINGKAT (PRIORITAS ENABLER) ---
                     def lookup_kondisi_rule(row):
                         p = str(row.get('Platform', '')).strip().upper()
                         b1 = str(row.get('Brand', '')).strip().upper()
                         b2 = str(row.get('Brand 2', '')).strip().upper()
                         
-                        # Fungsi internal untuk mengecek platform + brand
-                        def check_brand(b):
-                            if p == 'TIKTOK':
-                                if b in ['FIRDA', "MAMA'S CHOICE", 'DOJAKO', "L'OREAL"]: return 'jc_fulfilment'
-                                elif b in ['WHISKAS', 'MAKUKU', 'COLGATE', 'MATTELSHOP', 'SENKA', 'FISHER PRICE', 'HOTWHEELS', 'BIOLAGE', 'OPPO', 'COMFEE', 'GAABOR', 'ACEKID', 'BARBIE', 'OPPO IOT', 'THOMAS']: return 'jc_enabler'
-                            elif p == 'SHOPEE':
-                                if b in ['FIRDA', 'DOJAKO']: return 'jc_fulfilment'
-                                elif b in ['THOMAS', 'MATTELSHOP', 'SENKA', 'GAABOR', 'WHISKAS', 'PEDIGREE', 'HOTWHEELS', 'MAKUKU', 'FISHER PRICE', 'OPPO', 'ACEKID', 'COMFEE', 'YOBOO', 'BARBIE']: return 'jc_enabler'
-                            elif p == 'AKULAKU':
-                                if b in ['OPPO', 'GAABOR']: return 'jc_enabler'
-                            elif p == 'LAZADA':
-                                if b == "MAMA'S CHOICE": return 'jc_fulfilment'
-                                elif b in ['OPPO', 'MAKUKU', 'COLGATE', 'SENKA']: return 'jc_enabler'
-                            elif p == 'BLIBLI':
-                                if b in ['MATTELSHOP', 'OPPO']: return 'jc_enabler'
-                            elif p == 'WEBSTORE':
-                                if b == 'ACEKID': return 'other'
-                                
-                            if b == 'SK': return 'other'
-                            return 'other'
-
-                        # 1. Prioritaskan pengecekan pada kolom 'Brand' utama
-                        res1 = check_brand(b1)
-                        if res1 != 'other': return res1
-                        
-                        # 2. Jika tidak ditemukan, baru cek di kolom 'Brand 2'
-                        res2 = check_brand(b2)
-                        if res2 != 'other': return res2
-                        
-                        # 3. Fallback Ekstrim (Menangkap anomali data silang)
-                        # Jika Platform kosong/salah ketik, abaikan platform dan tembak langsung dari kemiripan Brand
+                        # Gabungkan kedua kolom brand dan bersihkan spasi/tanda kutip agar aman dari typo
                         b_combined = (b1 + " " + b2).replace("'", "").replace(" ", "")
                         
-                        if any(x in b_combined for x in ['FIRDA', 'MAMASCHOICE', 'DOJAKO', 'LOREAL']):
-                            return 'jc_fulfilment'
+                        # Pengecualian Khusus Webstore
+                        if 'WEBSTORE' in p and 'ACEKID' in b_combined:
+                            return 'other'
                             
-                        enabler_brands = ['WHISKAS', 'MAKUKU', 'COLGATE', 'MATTELSHOP', 'SENKA', 'FISHERPRICE', 'HOTWHEELS', 'BIOLAGE', 'OPPO', 'COMFEE', 'GAABOR', 'BARBIE', 'THOMAS', 'PEDIGREE', 'YOBOO']
-                        if any(x in b_combined for x in enabler_brands):
-                            return 'jc_enabler'
+                        # Pengecualian Exact Teks SK
+                        if b1 == 'SK' or b2 == 'SK':
+                            return 'other'
                             
-                        if 'ACEKID' in b_combined:
-                            if 'WEBSTORE' in p: return 'other'
-                            return 'jc_enabler'
-                            
+                        # 1. PRIORITAS ENABLER 
+                        # Ini akan memastikan semua string yang mengandung Enabler dikunci ke Enabler (mengatasi 160 data yang bocor)
+                        enabler_brands = ['WHISKAS', 'MAKUKU', 'COLGATE', 'MATTELSHOP', 'SENKA', 'FISHERPRICE', 'HOTWHEELS', 'BIOLAGE', 'OPPO', 'COMFEE', 'GAABOR', 'BARBIE', 'THOMAS', 'PEDIGREE', 'YOBOO', 'ACEKID']
+                        for eb in enabler_brands:
+                            if eb in b_combined:
+                                return 'jc_enabler'
+                                
+                        # 2. FULFILMENT
+                        fulfilment_brands = ['FIRDA', 'MAMASCHOICE', 'DOJAKO', 'LOREAL']
+                        for fb in fulfilment_brands:
+                            if fb in b_combined:
+                                return 'jc_fulfilment'
+                                
                         return 'other'
 
                     # Terapkan formula IF ke setiap baris data
