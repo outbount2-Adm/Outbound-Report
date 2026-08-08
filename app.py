@@ -788,58 +788,43 @@ with st.container():
 
                     # --- EVALUASI KONDISI IF BERTINGKAT (PLATFORM & BRAND 2) ---
                     def lookup_kondisi_rule(row):
+                        # Ambil teks, hilangkan spasi sisa, dan jadikan HURUF KAPITAL semua
                         p = str(row.get('Platform', '')).strip().upper()
-                        b = str(row.get('Brand 2', '')).strip()
+                        b = str(row.get('Brand 2', '')).strip().upper()
                         
                         if p == 'TIKTOK':
-                            if b in ['Firda', "Mama's Choice", 'Dojako', "L'oreal"]: 
-                                return 'Jet Commerce Fulfillment Center'
-                            elif b in ['Whiskas', 'Makuku', 'Colgate', 'MattelShop', 'Senka', 'Fisher Price', 'Hotwheels', 'Biolage', 'Oppo', 'Comfee', 'Gaabor', 'AceKid', 'Barbie', 'Oppo IOT', 'Thomas']: 
-                                return 'Jet Commerce Enabler'
+                            if b in ['FIRDA', "MAMA'S CHOICE", 'DOJAKO', "L'OREAL"]: return 'jc_fulfilment'
+                            elif b in ['WHISKAS', 'MAKUKU', 'COLGATE', 'MATTELSHOP', 'SENKA', 'FISHER PRICE', 'HOTWHEELS', 'BIOLAGE', 'OPPO', 'COMFEE', 'GAABOR', 'ACEKID', 'BARBIE', 'OPPO IOT', 'THOMAS']: return 'jc_enabler'
                                 
                         elif p == 'SHOPEE':
-                            if b in ['Firda', 'Dojako']: 
-                                return 'Jet Commerce Fulfillment Center'
-                            elif b in ['Thomas', 'MattelShop', 'Senka', 'Gaabor', 'Whiskas', 'Pedigree', 'Hotwheels', 'Makuku', 'Fisher Price', 'Oppo', 'AceKid', 'Comfee', 'Yoboo', 'Barbie']: 
-                                return 'Jet Commerce Enabler'
+                            if b in ['FIRDA', 'DOJAKO']: return 'jc_fulfilment'
+                            elif b in ['THOMAS', 'MATTELSHOP', 'SENKA', 'GAABOR', 'WHISKAS', 'PEDIGREE', 'HOTWHEELS', 'MAKUKU', 'FISHER PRICE', 'OPPO', 'ACEKID', 'COMFEE', 'YOBOO', 'BARBIE']: return 'jc_enabler'
                                 
                         elif p == 'AKULAKU':
-                            if b in ['Oppo', 'Gaabor']: 
-                                return 'Jet Commerce Enabler'
+                            if b in ['OPPO', 'GAABOR']: return 'jc_enabler'
                             
                         elif p == 'LAZADA':
-                            if b == "Mama's Choice": 
-                                return 'Jet Commerce Fulfillment Center'
-                            elif b in ['Oppo', 'Makuku', 'Colgate', 'Senka']: 
-                                return 'Jet Commerce Enabler'
+                            if b == "MAMA'S CHOICE": return 'jc_fulfilment'
+                            elif b in ['OPPO', 'MAKUKU', 'COLGATE', 'SENKA']: return 'jc_enabler'
                             
                         elif p == 'BLIBLI':
-                            if b in ['MattelShop', 'Oppo']: 
-                                return 'Jet Commerce Enabler'
+                            if b in ['MATTELSHOP', 'OPPO']: return 'jc_enabler'
                             
                         elif p == 'WEBSTORE':
-                            if b == 'AceKid': 
-                                return 'Other'
+                            if b == 'ACEKID': return 'other'
                             
                         # Else (Other)
-                        if b == 'SK':
-                            return 'Other'
-                            
-                        return 'Other'
+                        if b == 'SK': return 'other'
+                        return 'other'
 
+                    # Terapkan formula IF ke setiap baris data
                     final_df['Master_Category'] = final_df.apply(lookup_kondisi_rule, axis=1)
-                    cat_series = final_df['Master_Category'].astype(str).str.lower()
 
-                    mask_enabler = cat_series.str.contains('enabler', na=False)
-                    mask_fulfilment = cat_series.str.contains('fulfil|center|service', regex=True, na=False) & ~mask_enabler
-                    mask_other = cat_series.str.contains('other', na=False) | ~(mask_enabler | mask_fulfilment)
-
-                    val_jc_enabler = int(mask_enabler.sum())
-                    val_jc_fulfilment = int(mask_fulfilment.sum())
-                    val_other = int(mask_other.sum())
-
-                    val_traceable = int(final_df['Master_Tracking'].eq('traceable').sum())
-                    val_untraceable = int(final_df['Master_Tracking'].eq('untraceable').sum())
+                    # --- PERBAIKAN METODE COUNT IF ---
+                    # Menggunakan kondisi EXACT MATCH (==) untuk akurasi hitungan yang presisi 100%
+                    val_jc_enabler = int((final_df['Master_Category'] == 'jc_enabler').sum())
+                    val_jc_fulfilment = int((final_df['Master_Category'] == 'jc_fulfilment').sum())
+                    val_other = int((final_df['Master_Category'] == 'other').sum())
 
                     metrics_data = [
                         [1, "delivery_rate", val_delivery_rate, "Persentase delivery rate"],
