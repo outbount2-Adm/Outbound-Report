@@ -788,43 +788,66 @@ with st.container():
 
                     # --- EVALUASI KONDISI IF BERTINGKAT (PLATFORM & BRAND 2) ---
                     def lookup_kondisi_rule(row):
-                        # Ambil teks, hilangkan spasi sisa, dan jadikan HURUF KAPITAL semua
                         p = str(row.get('Platform', '')).strip().upper()
-                        b = str(row.get('Brand 2', '')).strip().upper()
+                        b1 = str(row.get('Brand', '')).strip().upper()
+                        b2 = str(row.get('Brand 2', '')).strip().upper()
                         
-                        if p == 'TIKTOK':
-                            if b in ['FIRDA', "MAMA'S CHOICE", 'DOJAKO', "L'OREAL"]: return 'jc_fulfilment'
-                            elif b in ['WHISKAS', 'MAKUKU', 'COLGATE', 'MATTELSHOP', 'SENKA', 'FISHER PRICE', 'HOTWHEELS', 'BIOLAGE', 'OPPO', 'COMFEE', 'GAABOR', 'ACEKID', 'BARBIE', 'OPPO IOT', 'THOMAS']: return 'jc_enabler'
+                        # Fungsi internal untuk mengecek platform + brand
+                        def check_brand(b):
+                            if p == 'TIKTOK':
+                                if b in ['FIRDA', "MAMA'S CHOICE", 'DOJAKO', "L'OREAL"]: return 'jc_fulfilment'
+                                elif b in ['WHISKAS', 'MAKUKU', 'COLGATE', 'MATTELSHOP', 'SENKA', 'FISHER PRICE', 'HOTWHEELS', 'BIOLAGE', 'OPPO', 'COMFEE', 'GAABOR', 'ACEKID', 'BARBIE', 'OPPO IOT', 'THOMAS']: return 'jc_enabler'
+                            elif p == 'SHOPEE':
+                                if b in ['FIRDA', 'DOJAKO']: return 'jc_fulfilment'
+                                elif b in ['THOMAS', 'MATTELSHOP', 'SENKA', 'GAABOR', 'WHISKAS', 'PEDIGREE', 'HOTWHEELS', 'MAKUKU', 'FISHER PRICE', 'OPPO', 'ACEKID', 'COMFEE', 'YOBOO', 'BARBIE']: return 'jc_enabler'
+                            elif p == 'AKULAKU':
+                                if b in ['OPPO', 'GAABOR']: return 'jc_enabler'
+                            elif p == 'LAZADA':
+                                if b == "MAMA'S CHOICE": return 'jc_fulfilment'
+                                elif b in ['OPPO', 'MAKUKU', 'COLGATE', 'SENKA']: return 'jc_enabler'
+                            elif p == 'BLIBLI':
+                                if b in ['MATTELSHOP', 'OPPO']: return 'jc_enabler'
+                            elif p == 'WEBSTORE':
+                                if b == 'ACEKID': return 'other'
                                 
-                        elif p == 'SHOPEE':
-                            if b in ['FIRDA', 'DOJAKO']: return 'jc_fulfilment'
-                            elif b in ['THOMAS', 'MATTELSHOP', 'SENKA', 'GAABOR', 'WHISKAS', 'PEDIGREE', 'HOTWHEELS', 'MAKUKU', 'FISHER PRICE', 'OPPO', 'ACEKID', 'COMFEE', 'YOBOO', 'BARBIE']: return 'jc_enabler'
-                                
-                        elif p == 'AKULAKU':
-                            if b in ['OPPO', 'GAABOR']: return 'jc_enabler'
+                            if b == 'SK': return 'other'
+                            return 'other'
+
+                        # 1. Prioritaskan pengecekan pada kolom 'Brand' utama
+                        res1 = check_brand(b1)
+                        if res1 != 'other': return res1
+                        
+                        # 2. Jika tidak ditemukan, baru cek di kolom 'Brand 2'
+                        res2 = check_brand(b2)
+                        if res2 != 'other': return res2
+                        
+                        # 3. Fallback Ekstrim (Menangkap anomali data silang)
+                        # Jika Platform kosong/salah ketik, abaikan platform dan tembak langsung dari kemiripan Brand
+                        b_combined = (b1 + " " + b2).replace("'", "").replace(" ", "")
+                        
+                        if any(x in b_combined for x in ['FIRDA', 'MAMASCHOICE', 'DOJAKO', 'LOREAL']):
+                            return 'jc_fulfilment'
                             
-                        elif p == 'LAZADA':
-                            if b == "MAMA'S CHOICE": return 'jc_fulfilment'
-                            elif b in ['OPPO', 'MAKUKU', 'COLGATE', 'SENKA']: return 'jc_enabler'
+                        enabler_brands = ['WHISKAS', 'MAKUKU', 'COLGATE', 'MATTELSHOP', 'SENKA', 'FISHERPRICE', 'HOTWHEELS', 'BIOLAGE', 'OPPO', 'COMFEE', 'GAABOR', 'BARBIE', 'THOMAS', 'PEDIGREE', 'YOBOO']
+                        if any(x in b_combined for x in enabler_brands):
+                            return 'jc_enabler'
                             
-                        elif p == 'BLIBLI':
-                            if b in ['MATTELSHOP', 'OPPO']: return 'jc_enabler'
+                        if 'ACEKID' in b_combined:
+                            if 'WEBSTORE' in p: return 'other'
+                            return 'jc_enabler'
                             
-                        elif p == 'WEBSTORE':
-                            if b == 'ACEKID': return 'other'
-                            
-                        # Else (Other)
-                        if b == 'SK': return 'other'
                         return 'other'
 
                     # Terapkan formula IF ke setiap baris data
                     final_df['Master_Category'] = final_df.apply(lookup_kondisi_rule, axis=1)
 
-                    # --- PERBAIKAN METODE COUNT IF ---
-                    # Menggunakan kondisi EXACT MATCH (==) untuk akurasi hitungan yang presisi 100%
+                    # --- METODE COUNT IF (EXACT MATCH) ---
                     val_jc_enabler = int((final_df['Master_Category'] == 'jc_enabler').sum())
                     val_jc_fulfilment = int((final_df['Master_Category'] == 'jc_fulfilment').sum())
                     val_other = int((final_df['Master_Category'] == 'other').sum())
+                    
+                    val_traceable = int(final_df['Master_Tracking'].eq('traceable').sum())
+                    val_untraceable = int(final_df['Master_Tracking'].eq('untraceable').sum())
 
                     metrics_data = [
                         [1, "delivery_rate", val_delivery_rate, "Persentase delivery rate"],
