@@ -211,7 +211,6 @@ with st.container():
     if execute_clicked and uploaded_files:
         progress_bar = st.progress(0, text="Menyiapkan pemrosesan...")
         try:
-            # --- LOGIC PEMROSESAN (TETAP SAMA) ---
             progress_bar.progress(10, text="Membaca file sumber...")
             dfs = {}
             master_store_db = {}
@@ -244,76 +243,493 @@ with st.container():
                 elif 'operation log' in file_name:
                     rename_map_op = {c: 'WMS Order#' for c in df.columns if 'wms order' in c.lower()}
                     dfs['op_log'] = df.rename(columns=rename_map_op)
+                elif 'pack task' in file_name: dfs['pack_task'] = df
                 elif 'erp' in file_name: dfs['erp'] = df
 
-            # Validasi Dasar
             if 'ho_outbound' not in dfs or 'order_summary' not in dfs:
                 st.error("❌ File HO Outbound atau Order Summary tidak ditemukan.")
                 st.stop()
 
-            # Merge Logic
-            progress_bar.progress(40, text="Merging & Data Processing...")
+            for key in ['op_log', 'pack_task', 'erp', 'daily_ho']:
+                if key not in dfs: dfs[key] = pd.DataFrame()
+
+            progress_bar.progress(35, text="Merging & Data Processing...")
             df_ho = dfs['ho_outbound'].copy()
             res = pd.DataFrame({'WMS Order': df_ho['WMS Order']})
             
             df_order = dfs['order_summary']
             col_order_summary = next((c for c in df_order.columns if 'order#' in c.lower()), None)
             if col_order_summary:
-                res = res.merge(df_order.drop_duplicates(subset=[col_order_summary]), left_on='WMS Order', right_on=col_order_summary, how='left')
+                df_order = df_order.drop_duplicates(subset=[col_order_summary])
+                df_order = df_order.loc[:, ~df_order.columns.duplicated()]
+                res = res.merge(df_order, left_on='WMS Order', right_on=col_order_summary, how='left')
 
-            # ERP Doc & Tracking
             col_ext = next((c for c in res.columns if 'ext. order#' in c.lower()), None)
             res['ERP Document Number'] = res[col_ext].astype(str).str[:14] if col_ext else np.nan
             
             col_track = next((c for c in res.columns if 'tracking#' in c.lower() or 'pro#' in c.lower()), None)
             col_ref = next((c for c in res.columns if 'ref#' in c.lower()), None)
-            res['Tracking#/PRO#'] = res[col_track].fillna('') if col_track else ''
-            res['PlatformOrder'] = res[col_ref].fillna('') if col_ref else ''
+            res['Tracking#/PRO#'] = res[col_track].apply(lambda x: str(x).strip() if pd.notna(x) and str(x).strip() != 'nan' else '') if col_track else ''
+            res['PlatformOrder'] = res[col_ref].apply(lambda x: str(x).strip() if pd.notna(x) and str(x).strip() != 'nan' else '') if col_ref else ''
 
-            # Platform Mapping
+            col_resi_manual = next((c for c in df_ho.columns if 'resi manual' in c.lower() or 'manual resi' in c.lower()), None)
+            if col_resi_manual:
+                resi_manual_vals = df_ho[col_resi_manual].apply(lambda x: str(x).strip() if pd.notna(x) and str(x).strip() != 'nan' else '')
+                res['PlatformOrder'] = np.where(resi_manual_vals != '', resi_manual_vals, res['PlatformOrder'])
+
             col_sales = next((c for c in res.columns if 'sales channel' in c.lower()), None)
-            res['Platform'] = res[col_sales].fillna('Other')
+            res['Platform'] = res[col_sales] if col_sales else np.nan
             
-            # Brand Mapping
-            res['StoreNum_Temp'] = res['WMS Order'].astype(str).str[:5]
-            res['Brand'] = res['StoreNum_Temp'].map(lambda x: master_store_db.get(x, {}).get("Brand", ""))
-            res['Brand 2'] = res['StoreNum_Temp'].map(lambda x: master_store_db.get(x, {}).get("Brand2", ""))
+            plat_is_na = res['Platform'].isna() | (res['Platform'].astype(str).str.strip() == '') | (res['Platform'].astype(str).str.lower() == 'nan')
+            plat_order_str = res['PlatformOrder'].astype(str).str.strip()
             
-            # Logistics
-            col_carrier = next((c for c in res.columns if 'carrier code' in c.lower()), None)
-            res['Kurir'] = res[col_carrier].astype(str).str.strip().map(master_carrier_db).fillna(res[col_carrier]) if col_carrier else np.nan
+            kondisi_ck = plat_is_na & plat_order_str.str.startswith("CK")
+            kondisi_kosong = plat_is_na & (plat_order_str == "")
+            
+            res['Platform'] = np.where(
+                kondisi_ck | kondisi_kosong, "Other",
+                np.where(plat_is_na, "Webstore", res['Platform'])
+            )
 
-            # SLA & Times (Simplified for brevity but maintaining logic)
+            res['Platform'] = np.where(res['Platform'].astype(str).str.strip().str.lower() == 'independent', 'Other', res['Platform'])
+            is_platform_other = res['Platform'].astype(str).str.strip() == 'Other'
+
+            erp_empty = res['ERP Document Number'].isna() | (res['ERP Document Number'].astype(str).str.strip() == '') | (res['ERP Document Number'].astype(str).str.lower() == 'nan')
+            res['ERP Document Number'] = np.where(erp_empty & is_platform_other, res['WMS Order'], res['ERP Document Number'])
+
+            track_empty = res['Tracking#/PRO#'].isna() | (res['Tracking#/PRO#'].astype(str).str.strip() == '') | (res['Tracking#/PRO#'].astype(str).str.lower() == 'nan')
+            res['Tracking#/PRO#'] = np.where(track_empty & is_platform_other, res['WMS Order'], res['Tracking#/PRO#'])
+
+            platord_empty = res['PlatformOrder'].isna() | (res['PlatformOrder'].astype(str).str.strip() == '') | (res['PlatformOrder'].astype(str).str.lower() == 'nan')
+            res['PlatformOrder'] = np.where(platord_empty & is_platform_other, res['WMS Order'], res['PlatformOrder'])
+
+            df_op = dfs['op_log']
+            if not df_op.empty and 'Event' in df_op.columns and 'WMS Order#' in df_op.columns and 'operator' in df_op.columns:
+                ev_col = df_op['Event'].iloc[:, 0] if isinstance(df_op['Event'], pd.DataFrame) else df_op['Event']
+                op_col = df_op['operator'].iloc[:, 0] if isinstance(df_op['operator'], pd.DataFrame) else df_op['operator']
+                wms_op_col = df_op['WMS Order#'].iloc[:, 0] if isinstance(df_op['WMS Order#'], pd.DataFrame) else df_op['WMS Order#']
+                
+                df_clean_op = pd.DataFrame({
+                    'WMS Order#': wms_op_col,
+                    'Event': ev_col.astype(str).str.strip().str.lower(),
+                    'operator': op_col
+                })
+                ship_logs = df_clean_op[df_clean_op['Event'] == 'ship'].drop_duplicates(subset=['WMS Order#'])
+                res_temp = res[['WMS Order']].merge(ship_logs[['WMS Order#', 'operator']], left_on='WMS Order', right_on='WMS Order#', how='left')
+                res['Staged User'] = res_temp['operator']
+            else:
+                res['Staged User'] = np.nan
+
+            col_pic_ho = next((c for c in df_ho.columns if 'pic hand over' in c.lower()), None)
+            if col_pic_ho:
+                staged_empty = res['Staged User'].isna() | (res['Staged User'].astype(str).str.strip() == '') | (res['Staged User'].astype(str).str.lower() == 'nan')
+                res['Staged User'] = np.where(staged_empty, df_ho[col_pic_ho], res['Staged User'])
+
+            def safe_key(x):
+                if pd.isna(x): return ""
+                s = str(x).strip()
+                return s[:-2] if s.endswith('.0') else s
+
+            col_store = next((c for c in res.columns if 'store number' in c.lower()), None)
+            res['Store number'] = res[col_store] if col_store else np.nan
+            
+            if 'Store number' in res.columns:
+                res['Brand'] = res['Store number'].apply(safe_key).map(lambda x: master_store_db.get(x, {}).get('Brand', np.nan))
+                res['Brand 2'] = res['Store number'].apply(safe_key).map(lambda x: master_store_db.get(x, {}).get('Brand2', np.nan))
+            else:
+                res['Brand'] = np.nan
+                res['Brand 2'] = np.nan
+            
+            brand_is_na = res['Brand'].isna() | (res['Brand'].astype(str).str.strip() == '') | (res['Brand'].astype(str).str.lower() == 'nan')
+            brand2_is_na = res['Brand 2'].isna() | (res['Brand 2'].astype(str).str.strip() == '') | (res['Brand 2'].astype(str).str.lower() == 'nan')
+
+            res['Brand'] = np.where(brand_is_na & is_platform_other, "SK", np.where(brand_is_na, "AceKid", res['Brand']))
+            res['Brand 2'] = np.where(brand2_is_na & is_platform_other, "SK", np.where(brand2_is_na, "AceKid", res['Brand 2']))
+            res['Admin'] = current_admin
+
             progress_bar.progress(70, text="Calculating SLA & Time Metrics...")
-            # (Note: In actual use, I'd keep the full time logic from previous turn)
-            # Re-implementing essential time formatting
-            def to_dt(s): return pd.to_datetime(s, errors='coerce')
+            ho_col_map = {}
+            for c in df_ho.columns:
+                c_low = c.lower()
+                if 'no load' in c_low: ho_col_map['Load'] = c
+                elif 'tgl_ho_source' in c_low: ho_col_map['Tgl_HO'] = c
+                elif 'pic hand over' in c_low and 'tanggal' not in c_low: ho_col_map['Loader'] = c
+                elif 'time handover' in c_low: ho_col_map['Waktu_HO'] = c
+                elif 'attachment' in c_low: ho_col_map['Attachment'] = c
+                elif 'logistics stage' in c_low: ho_col_map['Logistics'] = c
+                elif 'expedisi' in c_low: ho_col_map['Expedisi'] = c
+
+            res['Load'] = df_ho[ho_col_map['Load']] if 'Load' in ho_col_map else np.nan
+            res['Loader'] = df_ho[ho_col_map['Loader']] if 'Loader' in ho_col_map else np.nan
             
-            col_pack = next((c for c in res.columns if 'packing complete' in c.lower()), None)
-            col_ship = next((c for c in res.columns if 'shipped date' in c.lower()), None)
-            res['Packing Complete'] = res[col_pack] if col_pack else np.nan
-            res['Shipped Date'] = res[col_ship] if col_ship else np.nan
+            if 'Tgl_HO' in ho_col_map:
+                def fix_date_only(val):
+                    if pd.isna(val): return val
+                    if isinstance(val, datetime.datetime): return f"{val.month:02d}/{val.day:02d}/{val.year}"
+                    return str(val)
+                raw_tgl_ho = df_ho[ho_col_map['Tgl_HO']].apply(fix_date_only)
+                res['Tanggal Handover'] = pd.to_datetime(raw_tgl_ho, errors='coerce', dayfirst=True).dt.strftime('%m/%d/%Y')
+            else:
+                res['Tanggal Handover'] = np.nan
             
-            # Final Column Assembly
-            progress_bar.progress(90, text="Finalizing Report...")
-            final_df = res.copy()
+            if 'Expedisi' in ho_col_map:
+                res['Kurir'] = df_ho[ho_col_map['Expedisi']].apply(safe_key).map(lambda x: master_carrier_db.get(x, x))
+            else:
+                res['Kurir'] = np.nan
+
+            col_wave = next((c for c in res.columns if c.lower() == 'wave' or 'wave id' in c.lower()), None)
+            col_created = next((c for c in res.columns if 'created date' in c.lower() and 'wave' not in c.lower() and 'picking' not in c.lower()), None)
+            col_ordered = next((c for c in res.columns if 'ordered date' in c.lower()), None)
+            col_pick_created = next((c for c in res.columns if 'picking task created' in c.lower()), None)
+
+            res['Wave ID'] = res[col_wave] if col_wave else np.nan
+            res['Created Time'] = res[col_created] if col_created else np.nan
+            res['Ordered Date'] = res[col_ordered] if col_ordered else np.nan
+            
+            if col_pick_created:
+                def get_last_picking_time(x):
+                    if pd.isna(x): return x
+                    x_str = str(x).strip()
+                    return x_str.split(',')[-1].strip() if ',' in x_str else x_str
+                res['Picking Task Created Time'] = res[col_pick_created].apply(get_last_picking_time)
+            else:
+                res['Picking Task Created Time'] = np.nan
+
+            df_pack = dfs['pack_task']
+            col_pack_order = next((c for c in df_pack.columns if 'order#' in c.lower()), None) if not df_pack.empty else None
+            if col_pack_order:
+                df_pack = df_pack.drop_duplicates(subset=[col_pack_order])
+                col_released = next((c for c in df_pack.columns if 'released date' in c.lower()), None)
+                col_close = next((c for c in df_pack.columns if 'close date' in c.lower()), None)
+                cols_pack_merge = [col_pack_order]
+                if col_released: cols_pack_merge.append(col_released)
+                if col_close: cols_pack_merge.append(col_close)
+                
+                res_pack_m = res[['WMS Order']].merge(df_pack[cols_pack_merge], left_on='WMS Order', right_on=col_pack_order, how='left')
+                res['pickCompletedTime - Released Date Pack'] = res_pack_m[col_released] if col_released else np.nan
+                res['Packing Complete'] = res_pack_m[col_close] if col_close else np.nan
+            else:
+                res['pickCompletedTime - Released Date Pack'] = np.nan
+                res['Packing Complete'] = np.nan
+
+            col_shipped = next((c for c in res.columns if 'shipped date' in c.lower()), None)
+            col_endship = next((c for c in res.columns if 'end ship date' in c.lower()), None)
+            res['Shipped Date'] = res[col_shipped] if col_shipped else np.nan
+            
+            if 'Waktu_HO' in ho_col_map:
+                def fix_ho_date(val):
+                    if pd.isna(val): return val
+                    if isinstance(val, datetime.datetime): return f"{val.year}-{val.month:02d}-{val.day:02d} {val.hour:02d}:{val.minute:02d}:{val.second:02d}"
+                    return str(val)
+                raw_ho = df_ho[ho_col_map['Waktu_HO']].apply(fix_ho_date)
+                parsed_ho = pd.to_datetime(raw_ho, errors='coerce')
+                res['Handover Date'] = parsed_ho.dt.strftime('%Y-%m-%d %H:%M:%S')
+                res['Handover_Date_Raw'] = parsed_ho
+            else:
+                res['Handover Date'] = np.nan
+                res['Handover_Date_Raw'] = pd.NaT
+
+            res['End Ship Date'] = res[col_endship] if col_endship else np.nan
+            col_logistics = ho_col_map.get('Logistics', None)
+            res['Times Proses Kurir'] = df_ho[col_logistics] if col_logistics else np.nan
+
+            is_time_empty = res['Times Proses Kurir'].isna() | (res['Times Proses Kurir'].astype(str).str.strip() == '') | (res['Times Proses Kurir'].astype(str).str.lower() == 'nan')
+            is_instant_courier = res['Kurir'].astype(str).str.strip() == 'Go-Jek/Grab/Shopee Instant'
+            col_shipped_temp = res['Shipped Date'] if 'Shipped Date' in res.columns else np.nan
+            res['Times Proses Kurir'] = np.where(is_time_empty & is_instant_courier, col_shipped_temp, res['Times Proses Kurir'])
+
+            dt_format_cols = ['Created Time', 'Ordered Date', 'Picking Task Created Time', 'pickCompletedTime - Released Date Pack', 'Packing Complete', 'Shipped Date', 'End Ship Date', 'Times Proses Kurir']
+            for c in dt_format_cols:
+                if c in res.columns:
+                    res[c] = pd.to_datetime(res[c], errors='coerce').dt.strftime('%Y-%m-%d %H:%M:%S').replace('NaT', np.nan).fillna('')
+            if 'Handover Date' in res.columns:
+                res['Handover Date'] = res['Handover Date'].replace('NaT', np.nan).fillna('')
+
+            def to_dt(col_name):
+                if col_name == 'Handover Date': return res.get('Handover_Date_Raw')
+                return pd.to_datetime(res.get(col_name), errors='coerce')
+
+            def format_timedelta_hhmmss(td_series):
+                if td_series is None: return ""
+                seconds = td_series.dt.total_seconds().fillna(0).astype(int)
+                is_neg = seconds < 0
+                seconds = abs(seconds)
+                hours = seconds // 3600
+                minutes = (seconds % 3600) // 60
+                secs = seconds % 60
+                res_str = hours.astype(str).str.zfill(2) + ":" + minutes.astype(str).str.zfill(2) + ":" + secs.astype(str).str.zfill(2)
+                return np.where(is_neg, "-" + res_str, res_str)
+
+            res['Packing to Shpped Date'] = format_timedelta_hhmmss(to_dt('Shipped Date') - to_dt('Packing Complete'))
+            res['Packing to Handover'] = format_timedelta_hhmmss(to_dt('Handover Date') - to_dt('Packing Complete'))
+            res['Shipped Date to Handover'] = format_timedelta_hhmmss(to_dt('Handover Date') - to_dt('Shipped Date'))
+            res['End Ship Date to Shpped Date'] = format_timedelta_hhmmss(to_dt('End Ship Date') - to_dt('Shipped Date'))
+
+            col_city = next((c for c in res.columns if 'ship to city' in c.lower()), None)
+            col_prov = next((c for c in res.columns if 'ship to st' in c.lower() or 'prov' in c.lower()), None)
+            res['Kota'] = res[col_city] if col_city else np.nan
+            res['Provinsi'] = res[col_prov] if col_prov else np.nan
+
+            df_erp = dfs['erp']
+            col_erp_order = next((c for c in df_erp.columns if 'erp order number' in c.lower()), None) if not df_erp.empty else None
+            if col_erp_order and 'ERP Document Number' in res.columns:
+                df_erp = df_erp.drop_duplicates(subset=[col_erp_order])
+                col_status = next((c for c in df_erp.columns if 'online status' in c.lower()), None)
+                col_payment = next((c for c in df_erp.columns if 'payment method' in c.lower()), None)
+                col_amount = next((c for c in df_erp.columns if 'total order amount' in c.lower()), None)
+                cols_erp_merge = [col_erp_order]
+                if col_status: cols_erp_merge.append(col_status)
+                if col_payment: cols_erp_merge.append(col_payment)
+                if col_amount: cols_erp_merge.append(col_amount)
+                
+                res_erp_m = res[['ERP Document Number']].merge(df_erp[cols_erp_merge], left_on='ERP Document Number', right_on=col_erp_order, how='left')
+                res['Status'] = res_erp_m[col_status] if col_status else np.nan
+                res['total order amount'] = res_erp_m[col_amount] if col_amount else np.nan
+                
+                def map_payment(x):
+                    x_str = str(x).strip().lower()
+                    return 'Non COD' if x_str in ['在线支付', 'nan', 'none', ''] else 'COD'
+                res['Payment Menthood'] = res_erp_m[col_payment].apply(map_payment) if col_payment else 'Non COD'
+            else:
+                res['Status'] = np.nan; res['total order amount'] = np.nan; res['Payment Menthood'] = 'Non COD'
+
+            res['Status'] = res['Status'].apply(lambda x: 'Other' if pd.isna(x) or str(x).strip() in ['', 'nan', 'None'] else x)
+            col_attach = ho_col_map.get('Attachment', None)
+            res['Attachment'] = df_ho[col_attach].apply(lambda x: str(x).strip() if pd.notna(x) else '') if col_attach else np.nan
+            res['Dokumen'] = np.where(res['Attachment'].replace({0: np.nan, '0': np.nan, '': np.nan}).isna(), 'Not yet Input', 'YES')
+
+            res['Times Proses Kurir to Shpped Date'] = format_timedelta_hhmmss(to_dt('Times Proses Kurir') - to_dt('Shipped Date'))
+            plat_cond = res.get('Platform', pd.Series(['']*len(res))).astype(str).str.lower().isin(['shopee', 'tiktok'])
+            ai_val, w_val = to_dt('Times Proses Kurir'), to_dt('End Ship Date')
+            res['Status Manifest'] = np.where(ai_val.isna() | w_val.isna(), "", np.where(plat_cond, np.where(ai_val > w_val, "Late", "On Time"), "On Time"))
+
+            res['Status Late'] = np.nan; res['Remark Late'] = np.nan
+            res['Pay-Created'] = format_timedelta_hhmmss(to_dt('Created Time') - to_dt('Ordered Date'))
+            res['Created-Released'] = format_timedelta_hhmmss(to_dt('Picking Task Created Time') - to_dt('Created Time'))
+            res['Released-Pick'] = format_timedelta_hhmmss(to_dt('pickCompletedTime - Released Date Pack') - to_dt('Picking Task Created Time'))
+            res['Pick-Pack'] = format_timedelta_hhmmss(to_dt('Packing Complete') - to_dt('pickCompletedTime - Released Date Pack'))
+            res['Pack-Collect'] = format_timedelta_hhmmss(to_dt('Shipped Date') - to_dt('Packing Complete'))
+            res['Collect-Manifest'] = format_timedelta_hhmmss(to_dt('Times Proses Kurir') - to_dt('Shipped Date'))
+            res['Manifest-Endshipdate'] = format_timedelta_hhmmss(to_dt('End Ship Date') - to_dt('Times Proses Kurir'))
+
+            def get_safe_seconds(td_str_series):
+                sec_list = []
+                for val in td_str_series:
+                    if pd.isna(val) or str(val).strip() in ['', 'NaT']:
+                        sec_list.append(0.0); continue
+                    val_str = str(val).strip()
+                    sign = -1 if val_str.startswith('-') else 1
+                    parts = val_str.replace('-', '').split(':')
+                    try:
+                        h = float(parts[0]) if len(parts) == 3 and parts[0] != '' else 0.0
+                        m = float(parts[1]) if len(parts) == 3 and parts[1] != '' else 0.0
+                        s = float(parts[2]) if len(parts) == 3 and parts[2] != '' else 0.0
+                        sec_list.append(sign * (h * 3600 + m * 60 + s))
+                    except:
+                        sec_list.append(0.0)
+                return pd.Series(sec_list)
+
+            progress_bar.progress(90, text="Finalizing Report & Excel Workbook...")
+            kolom_final = [
+                'WMS Order', 'ERP Document Number', 'Tracking#/PRO#', 'PlatformOrder', 'Staged User', 
+                'Platform', 'Brand', 'Brand 2', 'Admin', 'Load', 'Kurir', 'Loader', 'Tanggal Handover', 
+                'Wave ID', 'Created Time', 'Ordered Date', 'Picking Task Created Time', 
+                'pickCompletedTime - Released Date Pack', 'Packing Complete', 'Shipped Date', 'Handover Date', 
+                'End Ship Date', 'Packing to Shpped Date', 'Packing to Handover', 'Shipped Date to Handover', 
+                'End Ship Date to Shpped Date', 'Kota', 'Provinsi', 'Status', 'Payment Menthood', 
+                'total order amount', 'Dokumen', 'Attachment', 'Times Proses Kurir', 'Times Proses Kurir to Shpped Date', 
+                'Status Manifest', 'Status Late', 'Remark Late', 'Pay-Created', 'Created-Released', 'Released-Pick', 
+                'Pick-Pack', 'Pack-Collect', 'Collect-Manifest', 'Manifest-Endshipdate', 'Max', 'System', 'Admin_Akhir', 
+                'Picker', 'Packer', 'Outbound', 'Kurir_Akhir', 'Late Proses Data Dummy', 'Late Proses By'
+            ]
+            
+            for col in kolom_final:
+                if col not in res.columns: res[col] = np.nan
+            final_df = res[kolom_final].copy()
+
+            final_df = final_df.rename(columns={'Admin_Akhir': 'Admin ', 'Kurir_Akhir': 'Kurir '})
+            final_df = final_df.drop(columns=['Late Proses Data Dummy'], errors='ignore')
+            final_df = final_df.loc[:, ~final_df.columns.duplicated()]
+
+            master_df = dfs.get('master', pd.DataFrame())
+            master_status_col = next((c for c in master_df.columns if 'online status' in c.lower() or c.lower() == 'status'), None)
+            master_track_col = next((c for c in master_df.columns if 'tracking' in c.lower()), None)
+            master_track_dict = {}
+            if master_status_col and master_track_col:
+                for _, row in master_df.iterrows():
+                    st_val = str(row[master_status_col]).strip().lower()
+                    tr_val = str(row[master_track_col]).strip().lower()
+                    if st_val and pd.notna(row[master_track_col]): master_track_dict[st_val] = tr_val
+
+            final_df['Master_Tracking'] = final_df['Status'].astype(str).str.strip().str.lower().map(master_track_dict).fillna('traceable')
             final_df.insert(0, 'No', range(1, len(final_df) + 1))
-            
-            # Untraceable Logic
-            final_df['Master_Tracking'] = 'traceable' # Placeholder for this demo context
-            
+            st.session_state['processed_result'] = final_df
+
+            # Pembuatan Excel dengan Formula Excel Fix
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                df_to_export = final_df.drop(columns=['Master_Tracking'], errors='ignore')
+                df_to_export.to_excel(writer, index=False, sheet_name='Laporan_WMS')
+                
+                workbook = writer.book
+                worksheet_wms = writer.sheets['Laporan_WMS']
+                format_header = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1})
+                format_time = workbook.add_format({'num_format': 'hh:mm:ss', 'border': 1, 'align': 'center'})
+                
+                col_idx_track = list(df_to_export.columns).index('Tracking#/PRO#')
+                col_idx_plat = list(df_to_export.columns).index('PlatformOrder')
+                
+                for row_num in range(len(df_to_export)):
+                    val_track = str(df_to_export.iloc[row_num]['Tracking#/PRO#'])
+                    val_plat = str(df_to_export.iloc[row_num]['PlatformOrder'])
+                    if val_track != 'nan' and val_track != '': worksheet_wms.write_string(row_num + 1, col_idx_track, val_track)
+                    if val_plat != 'nan' and val_plat != '': worksheet_wms.write_string(row_num + 1, col_idx_plat, val_plat)
+
+                    excel_row = row_num + 2
+                    
+                    worksheet_wms.write_formula(row_num + 1, 46, f"=MAX(IFERROR(VALUE(AN{excel_row}),0), IFERROR(VALUE(AO{excel_row}),0), IFERROR(VALUE(AP{excel_row}),0), IFERROR(VALUE(AQ{excel_row}),0), IFERROR(VALUE(AR{excel_row}),0), IFERROR(VALUE(AS{excel_row}),0), IFERROR(VALUE(AT{excel_row}),0))", format_time)
+                    worksheet_wms.write_formula(row_num + 1, 47, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AN{excel_row}), FALSE))")
+                    worksheet_wms.write_formula(row_num + 1, 48, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AO{excel_row}), FALSE))")
+                    worksheet_wms.write_formula(row_num + 1, 49, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AP{excel_row}), FALSE))")
+                    worksheet_wms.write_formula(row_num + 1, 50, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AQ{excel_row}), FALSE))")
+                    worksheet_wms.write_formula(row_num + 1, 51, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AR{excel_row}), FALSE))")
+                    worksheet_wms.write_formula(row_num + 1, 52, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AS{excel_row}), FALSE))")
+                    
+                    formula_late_by = (
+                        f'=IF(AV{excel_row}, "System", '
+                        f'IF(AW{excel_row}, "Admin", '
+                        f'IF(AX{excel_row}, "Picker", '
+                        f'IF(AY{excel_row}, "Packer", '
+                        f'IF(AZ{excel_row}, "Outbound", '
+                        f'IF(BA{excel_row}, "Kurir", ""))))))'
+                    )
+                    worksheet_wms.write_formula(row_num + 1, 53, formula_late_by)
+
+                for col_num, value in enumerate(df_to_export.columns.values):
+                    worksheet_wms.write(0, col_num, value, format_header)
+                    worksheet_wms.set_column(col_num, col_num, 16)
+
+                # ==========================================
+                # SHEET DB (DASHBOARD SUMMARY)
+                # ==========================================
+                worksheet_db = workbook.add_worksheet('DB')
+                header_format_db = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1, 'align': 'center'})
+                cell_format_db = workbook.add_format({'border': 1, 'align': 'center'})
+                cell_format_left = workbook.add_format({'border': 1, 'align': 'left'})
+                black_divider = workbook.add_format({'bg_color': '#000000'})
+                
+                df_brand = final_df['Brand'].value_counts().reset_index()
+                df_brand.columns = ['Brand', 'Delivered']
+                df_brand.insert(0, 'No', range(1, len(df_brand) + 1))
+                df_brand['Target'] = 0 
+                
+                df_kurir = final_df['Kurir'].value_counts().reset_index()
+                df_kurir.columns = ['Courier_Name', 'Total_Package']
+                df_kurir = df_kurir.head(5)
+                df_kurir.insert(0, 'No', range(1, len(df_kurir) + 1))
+                df_kurir['Ranking'] = range(1, len(df_kurir) + 1)
+                
+                df_status = final_df['Status Manifest'].replace('', 'Unknown').value_counts().reset_index()
+                df_status.columns = ['Status_Manifest', 'qty']
+                df_status.insert(0, 'No', range(1, len(df_status) + 1))
+
+                df_kurir_manifest = pd.DataFrame()
+                if 'Kurir' in final_df.columns and 'Times Proses Kurir to Shpped Date' in final_df.columns:
+                    temp_k = final_df[['Kurir', 'Times Proses Kurir to Shpped Date']].copy()
+                    temp_k['sec'] = get_safe_seconds(temp_k['Times Proses Kurir to Shpped Date'])
+                    grouped_k = temp_k.groupby('Kurir')['sec'].mean().reset_index()
+                    
+                    def sec_to_hhmmss(s):
+                        if pd.isna(s) or s <= 0: return "0:00:00"
+                        s = int(s)
+                        return f"{s // 3600}:{(s % 3600) // 60:02d}:{s % 60:02d}"
+                        
+                    grouped_k['Avg_Process_Time'] = grouped_k['sec'].apply(sec_to_hhmmss)
+                    df_kurir_manifest = grouped_k[['Kurir', 'Avg_Process_Time']].copy()
+                    df_kurir_manifest.columns = ['Courier_Name', 'Avg_Times_Proses_Kurir_to_Shipped']
+                    df_kurir_manifest.insert(0, 'No', range(1, len(df_kurir_manifest) + 1))
+                else:
+                    df_kurir_manifest = pd.DataFrame(columns=['No', 'Courier_Name', 'Avg_Times_Proses_Kurir_to_Shipped'])
+
+                df_os_open = dfs.get('order_summary_open', dfs.get('order_summary', pd.DataFrame()))
+                col_ref_sum = next((c for c in df_os_open.columns if 'ref#' in c.lower()), None)
+                val_target = df_os_open[col_ref_sum].astype(str).str.strip().replace({'': np.nan, 'nan': np.nan}).dropna().nunique() if col_ref_sum else 0
+                val_delivered = len(final_df)
+                val_delivery_rate = round((val_delivered / val_target * 100), 2) if val_target > 0 else 0.0
+
+                raw_daily_df = dfs.get('daily_ho', pd.DataFrame()).copy()
+                val_pending = 0
+                if not raw_daily_df.empty:
+                    col0, col1 = raw_daily_df.columns[0], raw_daily_df.columns[1] if len(raw_daily_df.columns) > 1 else raw_daily_df.columns[0]
+                    mask_total = raw_daily_df[col0].astype(str).str.lower().str.contains('total', na=False) | raw_daily_df[col1].astype(str).str.lower().str.contains('total', na=False)
+                    raw_daily_df = raw_daily_df[~mask_total]
+                    col_pending = next((c for c in raw_daily_df.columns if 'cut off' in c.lower() or 'pending' in c.lower()), None)
+                    if col_pending:
+                        val_pending = int(pd.to_numeric(raw_daily_df[col_pending].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0).sum())
+
+                # Evaluasi Aturan Kategori Final
+                def lookup_kondisi_rule(row):
+                    b1 = str(row.get('Brand', '')).strip().upper()
+                    b2 = str(row.get('Brand 2', '')).strip().upper()
+                    p = str(row.get('Platform', '')).strip().upper()
+                    b_combined = (b1 + " " + b2).replace("'", "").replace(" ", "")
+                    
+                    if 'WEBSTORE' in p and 'ACEKID' in b_combined: return 'other'
+                    if b1 == 'SK' or b2 == 'SK': return 'other'
+                    if p == 'OTHER' and any(x in b2 for x in ['DOJAKO', 'FIRDA', 'MAMASCHOICE', 'NOURA']): return 'jc_fulfilment'
+                    
+                    fulfilment_brands = ['DOJAKO', 'FIRDA', 'NOURA', 'MAMASCHOICE']
+                    if any(fb in b_combined for fb in fulfilment_brands): return 'jc_fulfilment'
+                    return 'jc_enabler'
+
+                final_df['Master_Category'] = final_df.apply(lookup_kondisi_rule, axis=1)
+                val_jc_enabler = int((final_df['Master_Category'] == 'jc_enabler').sum())
+                val_jc_fulfilment = int((final_df['Master_Category'] == 'jc_fulfilment').sum())
+                val_other = int((final_df['Master_Category'] == 'other').sum())
+                val_traceable = int(final_df['Master_Tracking'].eq('traceable').sum())
+                val_untraceable = int(final_df['Master_Tracking'].eq('untraceable').sum())
+
+                metrics_data = [
+                    [1, "delivery_rate", val_delivery_rate, "Persentase delivery rate"],
+                    [2, "delivered", f"{val_delivered:,}", "Total order di sheet Laporan_WMS"],
+                    [3, "target", f"{val_target:,}", "Count unique Ref# dari file Order Summary Export OPEN"],
+                    [4, "pending_order", f"{val_pending:,}", "Total qty di kolom Pending Cut Off Qty file Daily HO"],
+                    [5, "jc_enabler", f"{val_jc_enabler:,}", "Kondisi Rule: Jet Commerce Enabler"],
+                    [6, "jc_fulfilment", f"{val_jc_fulfilment:,}", "Kondisi Rule: Jet Commerce Fulfillment Center"],
+                    [7, "other", f"{val_other:,}", "Kondisi Rule: Other"],
+                    [8, "traceable", f"{val_traceable:,}", "Lookup Status: Paket traceable"],
+                    [9, "untraceable", f"{val_untraceable:,}", "Lookup Status: Paket untraceable"],
+                ]
+                df_metrics = pd.DataFrame(metrics_data, columns=["No", "Metric_Name", "Value", "Description"])
+                
+                def write_custom_table(df_table, start_row, start_col):
+                    for c_idx, col_name in enumerate(df_table.columns):
+                        worksheet_db.write(start_row, start_col + c_idx, col_name, header_format_db)
+                    for r_idx, row in enumerate(df_table.values):
+                        for c_idx, val in enumerate(row):
+                            fmt = cell_format_left if isinstance(val, str) else cell_format_db
+                            worksheet_db.write(start_row + r_idx + 1, start_col + c_idx, val, fmt)
+
+                write_custom_table(df_metrics, 1, 0)
+                write_custom_table(df_brand, 1, 5)
+                write_custom_table(df_kurir, 1, 11)
+                write_custom_table(df_status, 1, 20)
+                write_custom_table(df_kurir_manifest, 1, 25)
+                
+                worksheet_db.set_column('E:E', 2, black_divider)
+                worksheet_db.set_column('K:K', 2, black_divider)
+                worksheet_db.set_column('Q:Q', 2, black_divider)
+                worksheet_db.set_column('T:T', 2, black_divider)
+                worksheet_db.set_column('Y:Y', 2, black_divider)
+
+            st.session_state['excel_data'] = output.getvalue()
             st.session_state['processed_result'] = final_df
             st.session_state['summary_metrics'] = {
-                "Total Delivered": f"{len(final_df):,}",
-                "Delivery Rate": "100%", # Placeholder
-                "Target Order": f"{len(final_df):,}",
-                "Untraceable": "0"
+                "Total Delivered": f"{val_delivered:,}",
+                "Delivery Rate": f"{val_delivery_rate}%",
+                "Target Order": f"{val_target:,}",
+                "Untraceable": f"{val_untraceable:,}"
             }
-            
-            # Excel Generation (Mock for this update)
-            output = BytesIO()
-            final_df.to_excel(output, index=False)
-            st.session_state['excel_data'] = output.getvalue()
             
             progress_bar.progress(100, text="Selesai!")
             progress_bar.empty()
@@ -336,7 +752,6 @@ if 'processed_result' in st.session_state:
         st.markdown('<div class="modern-card">', unsafe_allow_html=True)
         st.markdown('<h3><span style="background:#f0fdf4; padding:8px; border-radius:8px;">📊</span> Data Explorer</h3>', unsafe_allow_html=True)
 
-        # 1. Metrik Ringkas
         m_col1, m_col2, m_col3, m_col4 = st.columns(4)
         with m_col1: st.markdown(f'<div class="metric-card"><div class="metric-label">Delivered</div><div class="metric-value">{metrics.get("Total Delivered")}</div></div>', unsafe_allow_html=True)
         with m_col2: st.markdown(f'<div class="metric-card"><div class="metric-label">Rate</div><div class="metric-value">{metrics.get("Delivery Rate")}</div></div>', unsafe_allow_html=True)
@@ -344,60 +759,34 @@ if 'processed_result' in st.session_state:
         with m_col4: st.markdown(f'<div class="metric-card"><div class="metric-label">Untraceable</div><div class="metric-value">{metrics.get("Untraceable")}</div></div>', unsafe_allow_html=True)
 
         st.write("")
-
-        # 2. Panel Filter Interaktif
         st.markdown('<div class="filter-panel">', unsafe_allow_html=True)
         st.markdown("##### 🔍 Filter Data Cepat")
         f_col1, f_col2, f_col3, f_col4 = st.columns(4)
         
-        with f_col1:
-            platforms = ["Semua"] + sorted(res_df['Platform'].unique().tolist())
-            sel_plat = st.selectbox("Platform", platforms)
-        with f_col2:
-            brands = ["Semua"] + sorted(res_df['Brand'].unique().tolist())
-            sel_brand = st.selectbox("Brand", brands)
+        with f_col1: sel_plat = st.selectbox("Platform", ["Semua"] + sorted(res_df['Platform'].dropna().astype(str).unique().tolist()))
+        with f_col2: sel_brand = st.selectbox("Brand", ["Semua"] + sorted(res_df['Brand'].dropna().astype(str).unique().tolist()))
         with f_col3:
-            # Cari kolom status jika ada
             status_col = next((c for c in res_df.columns if 'status' in c.lower()), None)
             if status_col:
-                statuses = ["Semua"] + sorted(res_df[status_col].unique().tolist())
+                statuses = ["Semua"] + sorted(res_df[status_col].dropna().astype(str).unique().tolist())
                 sel_status = st.selectbox("Status", statuses)
             else:
-                st.info("Status N/A")
                 sel_status = "Semua"
-        with f_col4:
-            search_query = st.text_input("Cari Order/Tracking", placeholder="Ketik nomor...")
+        with f_col4: search_query = st.text_input("Cari Order/Tracking", placeholder="Ketik nomor...")
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # Apply Filtering
         filtered_df = res_df.copy()
-        if sel_plat != "Semua": filtered_df = filtered_df[filtered_df['Platform'] == sel_plat]
-        if sel_brand != "Semua": filtered_df = filtered_df[filtered_df['Brand'] == sel_brand]
-        if status_col and sel_status != "Semua": filtered_df = filtered_df[filtered_df[status_col] == sel_status]
+        if sel_plat != "Semua": filtered_df = filtered_df[filtered_df['Platform'].astype(str) == sel_plat]
+        if sel_brand != "Semua": filtered_df = filtered_df[filtered_df['Brand'].astype(str) == sel_brand]
+        if status_col and sel_status != "Semua": filtered_df = filtered_df[filtered_df[status_col].astype(str) == sel_status]
         if search_query:
             mask = filtered_df.astype(str).apply(lambda x: x.str.contains(search_query, case=False)).any(axis=1)
             filtered_df = filtered_df[mask]
 
-        # 3. Konfigurasi Tabel yang Dioptimalkan
         st.markdown(f"Menampilkan **{len(filtered_df):,}** baris data:")
-        
-        # Konfigurasi Kolom untuk st.dataframe
-        column_config = {
-            "WMS Order": st.column_config.TextColumn("WMS Order", width="medium"),
-            "ERP Document Number": st.column_config.TextColumn("ERP Doc", width="medium"),
-            "Tracking#/PRO#": st.column_config.TextColumn("Tracking ID", width="medium"),
-            "Platform": st.column_config.TextColumn("Platform", width="small"),
-            "Brand": st.column_config.TextColumn("Brand", width="small"),
-            "Shipped Date": st.column_config.DatetimeColumn("Shipped", format="DD/MM/YY HH:mm"),
-            "Packing Complete": st.column_config.DatetimeColumn("Packed", format="DD/MM/YY HH:mm"),
-        }
-
-        # Tampilkan Dataframe dengan interaksi penuh
         st.dataframe(
             filtered_df.drop(columns=['Master_Tracking'], errors='ignore'),
-            use_container_width=True,
-            hide_index=True,
-            column_config=column_config
+            use_container_width=True, hide_index=True
         )
 
         st.write("")
@@ -412,5 +801,4 @@ if 'processed_result' in st.session_state:
             )
         st.markdown('</div>', unsafe_allow_html=True)
 
-# Footer
-st.markdown('<div style="text-align:center; color:#94a3b8; font-size:0.8rem; margin-top:20px;">Logistics Processor v2.1 • Optimized Table Layout</div>', unsafe_allow_html=True)
+st.markdown('<div style="text-align:center; color:#94a3b8; font-size:0.8rem; margin-top:20px;">Logistics Processor v2.2 • Optimized Table Layout & Formula Fix</div>', unsafe_allow_html=True)
