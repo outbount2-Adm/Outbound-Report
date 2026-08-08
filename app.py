@@ -792,31 +792,36 @@ with st.container():
                         b = str(row.get('Brand 2', '')).strip()
                         
                         if p == 'TIKTOK':
-                            if b == 'Firda': return 'Jet Commerce Fulfillment Center'
-                            elif b == "Mama's Choice": return 'Jet Commerce Fulfillment Center'
-                            elif b == 'Dojako': return 'Jet Commerce Fulfillment Center'
-                            elif b == "L'oreal": return 'Jet Commerce Fulfillment Center'
+                            if b in ['Firda', "Mama's Choice", 'Dojako', "L'oreal"]: 
+                                return 'Jet Commerce Fulfillment Center'
                             elif b in ['Whiskas', 'Makuku', 'Colgate', 'MattelShop', 'Senka', 'Fisher Price', 'Hotwheels', 'Biolage', 'Oppo', 'Comfee', 'Gaabor', 'AceKid', 'Barbie', 'Oppo IOT', 'Thomas']: 
                                 return 'Jet Commerce Enabler'
                                 
                         elif p == 'SHOPEE':
-                            if b in ['Firda', 'Dojako']: return 'Jet Commerce Fulfillment Center'
+                            if b in ['Firda', 'Dojako']: 
+                                return 'Jet Commerce Fulfillment Center'
                             elif b in ['Thomas', 'MattelShop', 'Senka', 'Gaabor', 'Whiskas', 'Pedigree', 'Hotwheels', 'Makuku', 'Fisher Price', 'Oppo', 'AceKid', 'Comfee', 'Yoboo', 'Barbie']: 
                                 return 'Jet Commerce Enabler'
                                 
                         elif p == 'AKULAKU':
-                            if b in ['Oppo', 'Gaabor']: return 'Jet Commerce Enabler'
+                            if b in ['Oppo', 'Gaabor']: 
+                                return 'Jet Commerce Enabler'
                             
                         elif p == 'LAZADA':
-                            if b == "Mama's Choice": return 'Jet Commerce Fulfillment Center'
-                            elif b in ['Oppo', 'Makuku', 'Colgate', 'Senka']: return 'Jet Commerce Enabler'
+                            if b == "Mama's Choice": 
+                                return 'Jet Commerce Fulfillment Center'
+                            elif b in ['Oppo', 'Makuku', 'Colgate', 'Senka']: 
+                                return 'Jet Commerce Enabler'
                             
                         elif p == 'BLIBLI':
-                            if b in ['MattelShop', 'Oppo']: return 'Jet Commerce Enabler'
+                            if b in ['MattelShop', 'Oppo']: 
+                                return 'Jet Commerce Enabler'
                             
                         elif p == 'WEBSTORE':
-                            if b == 'AceKid': return 'Other'
+                            if b == 'AceKid': 
+                                return 'Other'
                             
+                        # Else (Other)
                         if b == 'SK':
                             return 'Other'
                             
