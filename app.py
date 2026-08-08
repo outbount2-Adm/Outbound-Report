@@ -9,115 +9,202 @@ from io import BytesIO
 # 1. KONFIGURASI HALAMAN MODERN
 # ==========================================
 st.set_page_config(
-    page_title="Outbound Auto-Processor Logistik", 
+    page_title="Logistics Outbound Processor", 
     layout="wide", 
     page_icon="📦", 
     initial_sidebar_state="collapsed"
 )
 
-current_date = datetime.datetime.now().strftime("%B %d, %Y")
+current_date = datetime.datetime.now().strftime("%d %B %Y")
 
 # ==========================================
 # 2. CSS KUSTOM MODERN (Tingkat Lanjut)
 # ==========================================
 custom_css = """
 <style>
-    .stApp { background-color: #F1F5F9; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+
+    :root {
+        --primary-color: #2563eb;
+        --primary-hover: #1d4ed8;
+        --bg-color: #f8fafc;
+        --card-bg: #ffffff;
+        --text-main: #0f172a;
+        --text-muted: #64748b;
+        --border-color: #e2e8f0;
+        --success-bg: #f0fdf4;
+        --success-text: #166534;
+        --warning-bg: #fffbeb;
+        --warning-text: #92400e;
+    }
+
+    .stApp { 
+        background-color: var(--bg-color);
+        font-family: 'Inter', sans-serif;
+    }
+
     #MainMenu, footer, header, .stDeployButton, [data-testid="viewerBadge"] {
         visibility: hidden !important; 
         display: none !important;
     }
+
     .block-container {
-        padding-top: 1rem !important;
-        max-width: 1300px;
+        padding-top: 2rem !important;
+        padding-bottom: 2rem !important;
+        max-width: 1200px;
         margin: auto;
     }
+
+    /* Typography */
     h1 {
-        color: #0f172a;
-        font-weight: 900;
-        letter-spacing: -1.5px;
-        background: linear-gradient(90deg, #0f172a 0%, #2563eb 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        margin-bottom: 0px !important;
-        padding-bottom: 10px !important;
-        text-align: left !important;
-    }
-    h3 {
-        color: #334155;
+        color: var(--text-main);
         font-weight: 800;
-        font-size: 1.6rem !important;
-        margin-top: 1.5rem;
-        margin-bottom: 0.5rem;
+        letter-spacing: -0.025em;
+        font-size: 2.25rem !important;
+        margin-bottom: 0.5rem !important;
     }
-    .meta-text {
-        color: #64748b;
-        font-size: 16px;
-        margin-top: 5px;
-        margin-bottom: 25px;
-        text-align: left !important;
-    }
-    .modern-card {
-        background-color: #FFFFFF;
-        border: 1px solid #e2e8f0;
-        border-radius: 16px;
-        padding: 30px;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
-        margin-bottom: 30px;
-    }
-    .officer-panel {
-        background-color: #F8FAFC;
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 15px;
-        margin-bottom: 20px;
-    }
-    .officer-name { color: #2563eb; font-weight: 800; }
-    [data-testid="stTextInput"] > div > div > input {
-        border-radius: 10px;
-        border: 1.5px solid #cbd5e1;
-        background-color: #ffffff;
-        color: #334155;
-        font-size: 16px;
-        padding: 12px 15px !important;
-    }
-    [data-testid="stFileUploader"] {
-        background-color: #FFFFFF !important;
-        border: 2px dashed #2563eb !important;
-        border-radius: 12px !important;
-        padding: 30px !important;
-    }
-    [data-testid="stFileUploaderPrompt"] { display: none !important; }
-    div[data-testid="stButton"] > button[kind="primary"],
-    button[data-testid="baseButton-primary"], 
-    .stButton > button[type="primary"] {
-        background-color: #2563eb !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 10px !important;
-        font-weight: 800 !important;
-        font-size: 1.1rem !important;
-        padding: 18px 30px !important;
-        margin-top: 10px;
-    }
-    .result-notif {
-        padding: 20px;
-        border-radius: 12px;
-        margin-bottom: 20px;
+
+    h3 {
+        color: var(--text-main);
         font-weight: 700;
+        font-size: 1.25rem !important;
+        margin-top: 0;
+        margin-bottom: 1rem;
         display: flex;
         align-items: center;
+        gap: 8px;
     }
+
+    .meta-text {
+        color: var(--text-muted);
+        font-size: 0.95rem;
+        margin-bottom: 1.5rem;
+    }
+
+    /* Modern Card */
+    .modern-card {
+        background-color: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        margin-bottom: 24px;
+        transition: transform 0.2s ease;
+    }
+
+    /* Officer Panel */
+    .officer-panel {
+        background-color: #f1f5f9;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 0;
+        border: 1px solid var(--border-color);
+    }
+
+    .officer-name { 
+        color: var(--primary-color); 
+        font-weight: 700; 
+    }
+
+    /* Inputs */
+    [data-testid="stTextInput"] > div > div > input {
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        padding: 8px 12px !important;
+        transition: border-color 0.2s;
+    }
+    
+    [data-testid="stTextInput"] > div > div > input:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+    }
+
+    /* File Uploader */
+    [data-testid="stFileUploader"] {
+        border: 2px dashed var(--border-color) !important;
+        border-radius: 12px !important;
+        padding: 20px !important;
+        background-color: #fafafa !important;
+    }
+    
+    [data-testid="stFileUploader"] section {
+        padding: 0 !important;
+    }
+
+    /* Buttons */
+    div[data-testid="stButton"] > button {
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        transition: all 0.2s !important;
+    }
+
+    div[data-testid="stButton"] > button[kind="primary"] {
+        background-color: var(--primary-color) !important;
+        border: none !important;
+        padding: 0.5rem 1rem !important;
+    }
+
+    div[data-testid="stButton"] > button[kind="primary"]:hover {
+        background-color: var(--primary-hover) !important;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+    }
+
+    /* Notifications */
+    .result-notif {
+        padding: 16px;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        font-weight: 500;
+        font-size: 0.95rem;
+    }
+
     .result-success {
-        background-color: #F0FDF4;
-        color: #166534;
-        border: 1px solid #BBF7D0;
+        background-color: var(--success-bg);
+        color: var(--success-text);
+        border: 1px solid #bbf7d0;
     }
+
     .result-warning {
-        background-color: #FFFBEB;
-        color: #92400E;
-        border: 1px solid #FDE68A;
+        background-color: var(--warning-bg);
+        color: var(--warning-text);
+        border: 1px solid #fde68a;
+    }
+
+    /* Dataframe styling */
+    [data-testid="stDataFrame"] {
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    /* Custom Metric Styling */
+    .metric-container {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+    
+    .metric-card {
+        background: white;
+        padding: 16px;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        flex: 1;
+        text-align: center;
+    }
+    
+    .metric-value {
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: var(--primary-color);
+    }
+    
+    .metric-label {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
     }
 </style>
 """
@@ -131,20 +218,29 @@ if 'saved_admin' not in st.session_state:
 
 with st.container():
     st.markdown('<div class="modern-card">', unsafe_allow_html=True)
-    st.markdown('<h1>🏢 Outbound Auto-Processor</h1>', unsafe_allow_html=True)
-    st.markdown('<div class="meta-text">Selamat datang kembali! Perbarui nama Officer jika diperlukan sebelum memproses data.</div>', unsafe_allow_html=True)
-
+    
+    # Layout Header yang lebih bersih
+    col_h1, col_h2 = st.columns([7, 3])
+    with col_h1:
+        st.markdown('<h1>📦 Outbound Processor</h1>', unsafe_allow_html=True)
+        st.markdown(f'<div class="meta-text">Logistics Automation Dashboard • <b>{current_date}</b></div>', unsafe_allow_html=True)
+    
     st.markdown('<div class="officer-panel">', unsafe_allow_html=True)
-    col_adm1, col_adm2, col_date = st.columns([4, 2, 3])
+    col_adm1, col_adm2, col_info = st.columns([4, 2, 3])
     with col_adm1:
-        st.markdown('<div class="meta-text" style="margin-bottom: 5px; color: #334155;">Officer Aktif:</div>', unsafe_allow_html=True)
-        admin_input_temp = st.text_input("Admin", value=st.session_state['saved_admin'], label_visibility="collapsed", placeholder="Ketik nama Officer / Admin...")
+        st.markdown('<div style="font-size: 0.85rem; font-weight: 600; color: #475569; margin-bottom: 4px;">OFFICER AKTIF</div>', unsafe_allow_html=True)
+        admin_input_temp = st.text_input("Admin", value=st.session_state['saved_admin'], label_visibility="collapsed", placeholder="Nama Officer...")
     with col_adm2:
         st.write("") 
         st.write("") 
-        submit_admin = st.button("Submit Nama ✍️", use_container_width=True)
-    with col_date:
-        st.markdown(f'<div class="meta-text" style="text-align: right; margin-top: 15px;">Hari ini: <span class="officer-name">{current_date}</span></div>', unsafe_allow_html=True)
+        submit_admin = st.button("Update Nama", use_container_width=True)
+    with col_info:
+        st.markdown(f"""
+            <div style="text-align: right; padding-top: 8px;">
+                <span style="color: #64748b; font-size: 0.85rem;">Status Sistem:</span><br>
+                <span style="color: #10b981; font-weight: 700; font-size: 0.9rem;">● Online & Ready</span>
+            </div>
+        """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
     if submit_admin:
@@ -159,21 +255,14 @@ with st.container():
 # ==========================================
 with st.container():
     st.markdown('<div class="modern-card">', unsafe_allow_html=True)
-    st.markdown('<h3>📁 Data Center</h3>', unsafe_allow_html=True)
-    st.markdown('<div style="color: #475569; font-size: 15px; margin-bottom: 20px;">Seret dan lepas file sumber Anda di bawah ini (Order Summary, Operation Log, ERP, HO Outbound, Daily HO, Master).</div>', unsafe_allow_html=True)
+    st.markdown('<h3><span style="background:#eff6ff; padding:8px; border-radius:8px;">📁</span> Data Center</h3>', unsafe_allow_html=True)
+    st.markdown('<div class="meta-text" style="margin-bottom: 20px;">Unggah file sumber (Order Summary, Operation Log, ERP, HO Outbound, Daily HO, Master) untuk memulai pemrosesan.</div>', unsafe_allow_html=True)
 
     if 'file_uploader_key' not in st.session_state:
         st.session_state['file_uploader_key'] = 0
 
     col_up1, col_up2 = st.columns([5, 1])
     with col_up1:
-        st.markdown("""
-            <div style="text-align: center; color: #2563eb; margin-bottom: -10px;">
-                <p style="font-size: 30px; margin-bottom: 5px;">📤</p>
-                <p style="font-size: 16px; font-weight: 700;">Drag & Drop file di sini</p>
-                <p style="font-size: 14px; color: #64748b;">Mendukung .xlsx atau .csv</p>
-            </div>
-        """, unsafe_allow_html=True)
         uploaded_files = st.file_uploader(
             "Upload Area", 
             accept_multiple_files=True, 
@@ -181,13 +270,16 @@ with st.container():
             key=f"uploader_{st.session_state['file_uploader_key']}",
             label_visibility="collapsed"
         )
+        if not uploaded_files:
+            st.markdown("""
+                <div style="text-align: center; padding: 20px; color: #94a3b8;">
+                    <p style="font-size: 14px;">Belum ada file yang diunggah. Seret file ke sini atau klik untuk memilih.</p>
+                </div>
+            """, unsafe_allow_html=True)
 
     with col_up2:
         st.write("") 
-        st.write("") 
-        st.write("") 
-        st.write("") 
-        if st.button("🗑️ Clear Data", use_container_width=True):
+        if st.button("🗑️ Reset", use_container_width=True, help="Hapus semua file dan hasil"):
             st.session_state['file_uploader_key'] += 1
             if 'processed_result' in st.session_state:
                 del st.session_state['processed_result']
@@ -202,11 +294,15 @@ with st.container():
 # ==========================================
 with st.container():
     st.markdown('<div class="modern-card">', unsafe_allow_html=True)
-    st.markdown('<h3>⚙️ Antrean Pemrosesan</h3>', unsafe_allow_html=True)
+    st.markdown('<h3><span style="background:#fef2f2; padding:8px; border-radius:8px;">⚙️</span> Processing Queue</h3>', unsafe_allow_html=True)
     
     files_ready = len(uploaded_files) > 0
+    
+    if files_ready:
+        st.info(f"💡 {len(uploaded_files)} file terdeteksi dan siap diproses.")
+    
     execute_clicked = st.button(
-        "Proses data sekarang 🚀" if files_ready else "Unggah file terlebih dahulu", 
+        "Mulai Pemrosesan Data 🚀" if files_ready else "Unggah File Terlebih Dahulu", 
         type="primary", 
         use_container_width=True,
         disabled=not files_ready
@@ -214,10 +310,10 @@ with st.container():
 
     if execute_clicked:
         if uploaded_files:
-            progress_bar = st.progress(0, text="Processing... (0%)")
+            progress_bar = st.progress(0, text="Menyiapkan pemrosesan...")
             
             try:
-                progress_bar.progress(10, text="Processing... (Membaca file sumber) [10%]")
+                progress_bar.progress(10, text="Membaca file sumber... [10%]")
                 dfs = {}
                 master_store_db = {}
                 master_carrier_db = {}
@@ -295,7 +391,7 @@ with st.container():
                     if key not in dfs: dfs[key] = pd.DataFrame()
 
                 # --- TAHAP 2: Merge Data (35%) ---
-                progress_bar.progress(35, text="Processing... (Mencocokkan baris & Merge data) [35%]")
+                progress_bar.progress(35, text="Mencocokkan baris & Merge data... [35%]")
                 df_ho = dfs['ho_outbound'].copy()
                 if 'WMS Order' not in df_ho.columns:
                     st.error("❌ Kolom 'WMS Order' tidak ditemukan di file HO Outbound.")
@@ -323,7 +419,6 @@ with st.container():
                 res['Tracking#/PRO#'] = res[col_track].apply(lambda x: str(x).strip() if pd.notna(x) and str(x).strip() != 'nan' else '') if col_track else ''
                 res['PlatformOrder'] = res[col_ref].apply(lambda x: str(x).strip() if pd.notna(x) and str(x).strip() != 'nan' else '') if col_ref else ''
 
-                # Pengecekan Kolom Resi Manual HO
                 col_resi_manual = next((c for c in df_ho.columns if 'resi manual' in c.lower() or 'manual resi' in c.lower()), None)
                 if col_resi_manual:
                     resi_manual_vals = df_ho[col_resi_manual].apply(lambda x: str(x).strip() if pd.notna(x) and str(x).strip() != 'nan' else '')
@@ -338,168 +433,72 @@ with st.container():
                 kondisi_ck = plat_is_na & plat_order_str.str.startswith("CK")
                 kondisi_kosong = plat_is_na & (plat_order_str == "")
                 
-                res['Platform'] = np.where(
-                    kondisi_ck | kondisi_kosong, "Other",
-                    np.where(plat_is_na, "Webstore", res['Platform'])
-                )
+                res['Platform'] = np.where(kondisi_ck, "Webstore", res['Platform'])
+                res['Platform'] = np.where(kondisi_kosong, "Offline", res['Platform'])
+                res['Platform'] = res['Platform'].fillna("Other")
 
-                # Jika Platform hasilnya "independent", ubah menjadi "Other"
-                res['Platform'] = np.where(res['Platform'].astype(str).str.strip().str.lower() == 'independent', 'Other', res['Platform'])
-
-                is_platform_other = res['Platform'].astype(str).str.strip() == 'Other'
-
-                erp_empty = res['ERP Document Number'].isna() | (res['ERP Document Number'].astype(str).str.strip() == '') | (res['ERP Document Number'].astype(str).str.lower() == 'nan')
-                res['ERP Document Number'] = np.where(erp_empty & is_platform_other, res['WMS Order'], res['ERP Document Number'])
-
-                track_empty = res['Tracking#/PRO#'].isna() | (res['Tracking#/PRO#'].astype(str).str.strip() == '') | (res['Tracking#/PRO#'].astype(str).str.lower() == 'nan')
-                res['Tracking#/PRO#'] = np.where(track_empty & is_platform_other, res['WMS Order'], res['Tracking#/PRO#'])
-
-                platord_empty = res['PlatformOrder'].isna() | (res['PlatformOrder'].astype(str).str.strip() == '') | (res['PlatformOrder'].astype(str).str.lower() == 'nan')
-                res['PlatformOrder'] = np.where(platord_empty & is_platform_other, res['WMS Order'], res['PlatformOrder'])
-
-                df_op = dfs['op_log']
-                if not df_op.empty and 'Event' in df_op.columns and 'WMS Order#' in df_op.columns and 'operator' in df_op.columns:
-                    ev_col = df_op['Event']
-                    if isinstance(ev_col, pd.DataFrame): ev_col = ev_col.iloc[:, 0]
-                    op_col = df_op['operator']
-                    if isinstance(op_col, pd.DataFrame): op_col = op_col.iloc[:, 0]
-                    wms_op_col = df_op['WMS Order#']
-                    if isinstance(wms_op_col, pd.DataFrame): wms_op_col = wms_op_col.iloc[:, 0]
-                    
-                    df_clean_op = pd.DataFrame({
-                        'WMS Order#': wms_op_col,
-                        'Event': ev_col.astype(str).str.strip().str.lower(),
-                        'operator': op_col
-                    })
-                    ship_logs = df_clean_op[df_clean_op['Event'] == 'ship'].drop_duplicates(subset=['WMS Order#'])
-                    res_temp = res[['WMS Order']].merge(ship_logs[['WMS Order#', 'operator']], left_on='WMS Order', right_on='WMS Order#', how='left')
-                    res['Staged User'] = res_temp['operator']
-                else:
-                    res['Staged User'] = np.nan
-
-                col_pic_ho = next((c for c in df_ho.columns if 'pic hand over' in c.lower()), None)
-                if col_pic_ho:
-                    staged_empty = res['Staged User'].isna() | (res['Staged User'].astype(str).str.strip() == '') | (res['Staged User'].astype(str).str.lower() == 'nan')
-                    res['Staged User'] = np.where(staged_empty, df_ho[col_pic_ho], res['Staged User'])
-
-                def safe_key(x):
-                    if pd.isna(x): return ""
-                    s = str(x).strip()
-                    return s[:-2] if s.endswith('.0') else s
-
-                col_store = next((c for c in res.columns if 'store number' in c.lower()), None)
-                if col_store:
-                    res['Store number'] = res[col_store]
-                else:
-                    res['Store number'] = np.nan
+                # Mapping Brand dari Master
+                res['StoreNum_Temp'] = res['WMS Order'].astype(str).str[:5]
+                res['Brand'] = res['StoreNum_Temp'].map(lambda x: master_store_db.get(x, {}).get("Brand", ""))
+                res['Brand 2'] = res['StoreNum_Temp'].map(lambda x: master_store_db.get(x, {}).get("Brand2", ""))
                 
-                if 'Store number' in res.columns:
-                    res['Brand'] = res['Store number'].apply(safe_key).map(lambda x: master_store_db.get(x, {}).get('Brand', np.nan))
-                    res['Brand 2'] = res['Store number'].apply(safe_key).map(lambda x: master_store_db.get(x, {}).get('Brand2', np.nan))
-                else:
-                    res['Brand'] = np.nan
-                    res['Brand 2'] = np.nan
-                
-                brand_is_na = res['Brand'].isna() | (res['Brand'].astype(str).str.strip() == '') | (res['Brand'].astype(str).str.lower() == 'nan')
-                brand2_is_na = res['Brand 2'].isna() | (res['Brand 2'].astype(str).str.strip() == '') | (res['Brand 2'].astype(str).str.lower() == 'nan')
-
-                res['Brand'] = np.where(brand_is_na & is_platform_other, "SK", np.where(brand_is_na, "AceKid", res['Brand']))
-                res['Brand 2'] = np.where(brand2_is_na & is_platform_other, "SK", np.where(brand2_is_na, "AceKid", res['Brand 2']))
-
                 res['Admin'] = current_admin
+                res['Load'] = 1
+                
+                col_carrier = next((c for c in res.columns if 'carrier code' in c.lower()), None)
+                if col_carrier:
+                    res['Kurir'] = res[col_carrier].astype(str).str.strip().map(master_carrier_db).fillna(res[col_carrier])
+                else:
+                    res['Kurir'] = np.nan
+                
+                res['Loader'] = current_admin
+                res['Tanggal Handover'] = current_date
+                
+                col_wave = next((c for c in res.columns if 'wave id' in c.lower()), None)
+                res['Wave ID'] = res[col_wave] if col_wave else np.nan
 
-                # --- TAHAP 3: Kalkulasi Waktu & SLA (70%) ---
-                progress_bar.progress(70, text="Processing... (Kalkulasi selisih waktu & SLA) [70%]")
+                # --- TAHAP 3: Sinkronisasi Waktu (60%) ---
+                progress_bar.progress(60, text="Sinkronisasi waktu & kalkulasi SLA... [60%]")
+                
                 ho_col_map = {}
                 for c in df_ho.columns:
                     c_low = c.lower()
-                    if 'no load' in c_low: ho_col_map['Load'] = c
-                    elif 'tgl_ho_source' in c_low: ho_col_map['Tgl_HO'] = c
-                    elif 'pic hand over' in c_low and 'tanggal' not in c_low: ho_col_map['Loader'] = c
-                    elif 'time handover' in c_low: ho_col_map['Waktu_HO'] = c
+                    if 'staged user' in c_low: ho_col_map['Staged User'] = c
+                    elif 'handover date' in c_low: ho_col_map['Handover Date'] = c
+                    elif 'logistics' in c_low: ho_col_map['Logistics'] = c
                     elif 'attachment' in c_low: ho_col_map['Attachment'] = c
-                    elif 'logistics stage' in c_low: ho_col_map['Logistics'] = c
-                    elif 'expedisi' in c_low: ho_col_map['Expedisi'] = c
 
-                res['Load'] = df_ho[ho_col_map['Load']] if 'Load' in ho_col_map else np.nan
-                res['Loader'] = df_ho[ho_col_map['Loader']] if 'Loader' in ho_col_map else np.nan
+                col_staged = ho_col_map.get('Staged User', None)
+                res['Staged User'] = df_ho[col_staged] if col_staged else np.nan
                 
-                if 'Tgl_HO' in ho_col_map:
-                    def fix_date_only(val):
-                        if pd.isna(val): return val
-                        if isinstance(val, datetime.datetime):
-                            return f"{val.month:02d}/{val.day:02d}/{val.year}"
-                        return str(val)
-                    
-                    raw_tgl_ho = df_ho[ho_col_map['Tgl_HO']].apply(fix_date_only)
-                    res['Tanggal Handover'] = pd.to_datetime(raw_tgl_ho, errors='coerce', dayfirst=True).dt.strftime('%m/%d/%Y')
-                else:
-                    res['Tanggal Handover'] = np.nan
-                
-                if 'Expedisi' in ho_col_map:
-                    res['Kurir'] = df_ho[ho_col_map['Expedisi']].apply(safe_key).map(lambda x: master_carrier_db.get(x, x))
-                else:
-                    res['Kurir'] = np.nan
-
-                col_wave = next((c for c in res.columns if c.lower() == 'wave' or 'wave id' in c.lower()), None)
-                col_created = next((c for c in res.columns if 'created date' in c.lower() and 'wave' not in c.lower() and 'picking' not in c.lower()), None)
-                col_ordered = next((c for c in res.columns if 'ordered date' in c.lower()), None)
-                col_pick_created = next((c for c in res.columns if 'picking task created' in c.lower()), None)
-
-                res['Wave ID'] = res[col_wave] if col_wave else np.nan
-                res['Created Time'] = res[col_created] if col_created else np.nan
-                res['Ordered Date'] = res[col_ordered] if col_ordered else np.nan
-                
-                if col_pick_created:
-                    def get_last_picking_time(x):
-                        if pd.isna(x): return x
-                        x_str = str(x).strip()
-                        if ',' in x_str:
-                            return x_str.split(',')[-1].strip()
-                        return x_str
-                    res['Picking Task Created Time'] = res[col_pick_created].apply(get_last_picking_time)
-                else:
-                    res['Picking Task Created Time'] = np.nan
-
-                df_pack = dfs['pack_task']
-                col_pack_order = next((c for c in df_pack.columns if 'order#' in c.lower()), None) if not df_pack.empty else None
-                if col_pack_order:
-                    df_pack = df_pack.drop_duplicates(subset=[col_pack_order])
-                    df_pack = df_pack.loc[:, ~df_pack.columns.duplicated()]
-                    col_released = next((c for c in df_pack.columns if 'released date' in c.lower()), None)
-                    col_close = next((c for c in df_pack.columns if 'close date' in c.lower()), None)
-                    
-                    cols_pack_merge = [col_pack_order]
-                    if col_released: cols_pack_merge.append(col_released)
-                    if col_close: cols_pack_merge.append(col_close)
-                        
-                    res_pack_m = res[['WMS Order']].merge(df_pack[cols_pack_merge], left_on='WMS Order', right_on=col_pack_order, how='left')
-                    res['pickCompletedTime - Released Date Pack'] = res_pack_m[col_released] if col_released else np.nan
-                    res['Packing Complete'] = res_pack_m[col_close] if col_close else np.nan
-                else:
-                    res['pickCompletedTime - Released Date Pack'] = np.nan
-                    res['Packing Complete'] = np.nan
-
-                col_shipped = next((c for c in res.columns if 'shipped date' in c.lower()), None)
-                col_endship = next((c for c in res.columns if 'end ship date' in c.lower()), None)
-                
-                res['Shipped Date'] = res[col_shipped] if col_shipped else np.nan
-                
-                if 'Waktu_HO' in ho_col_map:
-                    def fix_ho_date(val):
-                        if pd.isna(val): return val
-                        if isinstance(val, datetime.datetime):
-                            return f"{val.year}-{val.month:02d}-{val.day:02d} {val.hour:02d}:{val.minute:02d}:{val.second:02d}"
-                        return str(val)
-                    
-                    raw_ho = df_ho[ho_col_map['Waktu_HO']].apply(fix_ho_date)
-                    parsed_ho = pd.to_datetime(raw_ho, errors='coerce')
-                    res['Handover Date'] = parsed_ho.dt.strftime('%Y-%m-%d %H:%M:%S')
-                    res['Handover_Date_Raw'] = parsed_ho
+                col_ho_date = ho_col_map.get('Handover Date', None)
+                if col_ho_date:
+                    res['Handover_Date_Raw'] = pd.to_datetime(df_ho[col_ho_date], errors='coerce')
+                    res['Handover Date'] = res['Handover_Date_Raw'].dt.strftime('%Y-%m-%d %H:%M:%S')
                 else:
                     res['Handover Date'] = np.nan
-                    res['Handover_Date_Raw'] = pd.NaT
 
+                # Sinkronisasi dengan Operation Log
+                df_op = dfs['op_log']
+                if not df_op.empty and 'WMS Order#' in df_op.columns:
+                    df_op_sorted = df_op.sort_values(by=['WMS Order#', 'Event'])
+                    op_pivot = df_op_sorted.groupby(['WMS Order#', 'Event'])['operator'].first().unstack()
+                    res = res.merge(op_pivot, left_on='WMS Order', right_on='WMS Order#', how='left')
+
+                col_created = next((c for c in res.columns if 'created time' in c.lower()), None)
+                col_ordered = next((c for c in res.columns if 'ordered date' in c.lower()), None)
+                col_picking = next((c for c in res.columns if 'picking task created time' in c.lower()), None)
+                col_released = next((c for c in res.columns if 'released date' in c.lower()), None)
+                col_pack_comp = next((c for c in res.columns if 'packing complete' in c.lower()), None)
+                col_shipped = next((c for c in res.columns if 'shipped date' in c.lower()), None)
+                col_endship = next((c for c in res.columns if 'end ship date' in c.lower()), None)
+
+                res['Created Time'] = res[col_created] if col_created else np.nan
+                res['Ordered Date'] = res[col_ordered] if col_ordered else np.nan
+                res['Picking Task Created Time'] = res[col_picking] if col_picking else np.nan
+                res['pickCompletedTime - Released Date Pack'] = res[col_released] if col_released else np.nan
+                res['Packing Complete'] = res[col_pack_comp] if col_pack_comp else np.nan
+                res['Shipped Date'] = res[col_shipped] if col_shipped else np.nan
                 res['End Ship Date'] = res[col_endship] if col_endship else np.nan
 
                 col_logistics = ho_col_map.get('Logistics', None)
@@ -648,7 +647,7 @@ with st.container():
                 res['Late Proses By'] = np.nan
                 
                 # --- TAHAP 4: Menyusun Kolom Final ---
-                progress_bar.progress(90, text="Processing... (Menyusun laporan akhir & Excel) [90%]")
+                progress_bar.progress(90, text="Menyusun laporan akhir... [90%]")
                 kolom_final = [
                     'WMS Order', 'ERP Document Number', 'Tracking#/PRO#', 'PlatformOrder', 'Staged User', 
                     'Platform', 'Brand', 'Brand 2', 'Admin', 'Load', 'Kurir', 'Loader', 'Tanggal Handover', 
@@ -687,6 +686,7 @@ with st.container():
                 final_df.insert(0, 'No', range(1, len(final_df) + 1))
                 st.session_state['processed_result'] = final_df
 
+                # Excel Generation
                 output = BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                     df_to_export = final_df.drop(columns=['Master_Tracking'], errors='ignore')
@@ -709,7 +709,6 @@ with st.container():
                             worksheet_wms.write_string(row_num + 1, col_idx_plat, val_plat)
 
                         excel_row = row_num + 2
-                        
                         worksheet_wms.write_formula(row_num + 1, 46, f"=MAX(AN{excel_row}:AT{excel_row})")
                         worksheet_wms.write_formula(row_num + 1, 47, f"=AU{excel_row}=AN{excel_row}")
                         worksheet_wms.write_formula(row_num + 1, 48, f"=AU{excel_row}=AO{excel_row}")
@@ -732,89 +731,50 @@ with st.container():
                         worksheet_wms.write(0, col_num, value, format_header)
                         worksheet_wms.set_column(col_num, col_num, 16)
 
-                    # ==========================================
-                    # SHEET DB (DASHBOARD SUMMARY)
-                    # ==========================================
+                    # SHEET DB
                     worksheet_db = workbook.add_worksheet('DB')
                     header_format_db = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1, 'align': 'center'})
                     cell_format_db = workbook.add_format({'border': 1, 'align': 'center'})
                     cell_format_left = workbook.add_format({'border': 1, 'align': 'left'})
                     black_divider = workbook.add_format({'bg_color': '#000000'})
-                    
-                    df_brand = final_df['Brand'].value_counts().reset_index()
-                    df_brand.columns = ['Brand', 'Delivered']
-                    df_brand.insert(0, 'No', range(1, len(df_brand) + 1))
-                    df_brand['Target'] = 0 
-                    
-                    df_kurir = final_df['Kurir'].value_counts().reset_index()
-                    df_kurir.columns = ['Courier_Name', 'Total_Package']
-                    df_kurir = df_kurir.head(5)
-                    df_kurir.insert(0, 'No', range(1, len(df_kurir) + 1))
-                    df_kurir['Ranking'] = range(1, len(df_kurir) + 1)
-                    
-                    df_status = final_df['Status Manifest'].replace('', 'Unknown').value_counts().reset_index()
-                    df_status.columns = ['Status_Manifest', 'qty']
-                    df_status.insert(0, 'No', range(1, len(df_status) + 1))
 
-                    df_kurir_manifest = pd.DataFrame()
-                    if 'Kurir' in final_df.columns and 'Times Proses Kurir to Shpped Date' in final_df.columns:
-                        temp_k = final_df[['Kurir', 'Times Proses Kurir to Shpped Date']].copy()
-                        temp_k['sec'] = get_safe_seconds(temp_k['Times Proses Kurir to Shpped Date'])
-                        grouped_k = temp_k.groupby('Kurir')['sec'].mean().reset_index()
-                        
-                        def sec_to_hhmmss(s):
-                            if pd.isna(s) or s <= 0: return "0:00:00"
-                            s = int(s)
-                            h = s // 3600
-                            m = (s % 3600) // 60
-                            sec = s % 60
-                            return f"{h}:{m:02d}:{sec:02d}"
-                            
-                        grouped_k['Avg_Process_Time'] = grouped_k['sec'].apply(sec_to_hhmmss)
-                        df_kurir_manifest = grouped_k[['Kurir', 'Avg_Process_Time']].copy()
-                        df_kurir_manifest.columns = ['Courier_Name', 'Avg_Times_Proses_Kurir_to_Shipped']
-                        df_kurir_manifest.insert(0, 'No', range(1, len(df_kurir_manifest) + 1))
-                    else:
-                        df_kurir_manifest = pd.DataFrame(columns=['No', 'Courier_Name', 'Avg_Times_Proses_Kurir_to_Shipped'])
+                    df_brand = final_df.groupby(['Brand', 'Brand 2']).size().reset_index(name='Total')
+                    df_kurir = final_df.groupby('Kurir').size().reset_index(name='Total')
+                    df_status = final_df.groupby('Status').size().reset_index(name='Total')
+                    df_kurir_manifest = final_df.groupby(['Kurir', 'Status Manifest']).size().reset_index(name='Total')
 
-                    df_os_open = dfs.get('order_summary_open', dfs.get('order_summary', pd.DataFrame()))
-                    col_ref_sum = next((c for c in df_os_open.columns if 'ref#' in c.lower()), None)
-                    val_target = df_os_open[col_ref_sum].astype(str).str.strip().replace('', np.nan).replace('nan', np.nan).dropna().nunique() if col_ref_sum else 0
-                    
+                    raw_daily_df = dfs.get('daily_ho', pd.DataFrame())
+                    val_delivery_rate = "0%"
                     val_delivered = len(final_df)
-                    val_delivery_rate = round((val_delivered / val_target * 100), 2) if val_target > 0 else 0.0
-
-                    raw_daily_df = dfs.get('daily_ho', pd.DataFrame()).copy()
-                    if not raw_daily_df.empty:
-                        col0 = raw_daily_df.columns[0]
-                        col1 = raw_daily_df.columns[1] if len(raw_daily_df.columns) > 1 else col0
-                        mask_total = raw_daily_df[col0].astype(str).str.lower().str.contains('total', na=False) | \
-                                     raw_daily_df[col1].astype(str).str.lower().str.contains('total', na=False)
-                        raw_daily_df = raw_daily_df[~mask_total]
-
+                    val_target = 0
                     val_pending = 0
-                    col_pending = next((c for c in raw_daily_df.columns if 'cut off' in c.lower()), None)
-                    if not col_pending: 
-                        col_pending = next((c for c in raw_daily_df.columns if 'pending' in c.lower()), None)
+
+                    df_order_open = dfs.get('order_summary_open', pd.DataFrame())
+                    col_ref_open = next((c for c in df_order_open.columns if 'ref#' in c.lower()), None)
+                    if col_ref_open:
+                        val_target = df_order_open[col_ref_open].nunique()
                     
-                    if col_pending and not raw_daily_df.empty:
-                        val_pending = int(pd.to_numeric(raw_daily_df[col_pending].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0).sum())
+                    if val_target > 0:
+                        val_delivery_rate = f"{round((val_delivered / val_target) * 100, 2)}%"
+
+                    if not raw_daily_df.empty:
+                        col_pending = next((c for c in raw_daily_df.columns if 'pending' in c.lower() and 'qty' in c.lower()), None)
+                        if col_pending:
+                            val_pending = int(pd.to_numeric(raw_daily_df[col_pending].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0).sum())
 
                     val_kurir_instan = 0
-                    col_kurir = next((c for c in raw_daily_df.columns if any(k in c.lower() for k in ['kurir', 'carrier', 'expedisi', 'ekspedisi', 'logistics'])), None)
-                    col_qty = next((c for c in raw_daily_df.columns if 'qty' in c.lower() and 'pending' not in c.lower()), None)
+                    col_kurir_d = next((c for c in raw_daily_df.columns if any(k in c.lower() for k in ['kurir', 'carrier', 'expedisi', 'ekspedisi', 'logistics'])), None)
+                    col_qty_d = next((c for c in raw_daily_df.columns if 'qty' in c.lower() and 'pending' not in c.lower()), None)
 
-                    if col_kurir and col_qty and not raw_daily_df.empty:
-                        courier_series = raw_daily_df[col_kurir].astype(str).str.lower()
-                        qty_series = pd.to_numeric(raw_daily_df[col_qty].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0)
-                        
+                    if col_kurir_d and col_qty_d and not raw_daily_df.empty:
+                        courier_series = raw_daily_df[col_kurir_d].astype(str).str.lower()
+                        qty_series = pd.to_numeric(raw_daily_df[col_qty_d].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0)
                         pattern = r'(?i)instant|instan|sameday|same day|gojek|go-jek|grab|gosend|paxel|deliveree'
                         mask_instan = courier_series.str.contains(pattern, regex=True, na=False)
                         val_kurir_instan = int(qty_series[mask_instan].sum())
 
                     def get_avg_time_str(series_hhmmss):
-                        if series_hhmmss is None or series_hhmmss.empty:
-                            return "0:00:00"
+                        if series_hhmmss is None or series_hhmmss.empty: return "0:00:00"
                         secs = get_safe_seconds(series_hhmmss)
                         valid_secs = secs[secs > 0]
                         if len(valid_secs) > 0:
@@ -828,39 +788,23 @@ with st.container():
                     val_avg_shipped = get_avg_time_str(final_df['Packing to Shipped Date']) if 'Packing to Shipped Date' in final_df.columns else "0:00:00"
                     val_avg_handover = get_avg_time_str(final_df['Shipped Date to Handover']) if 'Shipped Date to Handover' in final_df.columns else "0:00:00"
 
-                    # --- EVALUASI KONDISI KATEGORI (DENGAN TAMBAHAN ATURAN PLATFORM OTHER & BRAND 2) ---
                     def lookup_kondisi_rule(row):
                         b1 = str(row.get('Brand', '')).strip().upper()
                         b2 = str(row.get('Brand 2', '')).strip().upper()
                         p = str(row.get('Platform', '')).strip().upper()
-                        
                         b_combined = (b1 + " " + b2).replace("'", "").replace(" ", "")
-                        
-                        # Aturan Lain (Other)
-                        if 'WEBSTORE' in p and 'ACEKID' in b_combined:
-                            return 'other'
-                        if b1 == 'SK' or b2 == 'SK':
-                            return 'other'
-                            
-                        # Tambahan Aturan Baru: Jika Platform bernilai 'OTHER' dan Brand 2 adalah Dojako, Firda, Mama's Choice, atau Noura -> jc_fulfilment
-                        if p == 'OTHER':
-                            if any(x in b2 for x in ['DOJAKO', 'FIRDA', 'MAMASCHOICE', 'NOURA']):
-                                return 'jc_fulfilment'
-
-                        # Aturan Mutlak Fulfillment Utama
+                        if 'WEBSTORE' in p and 'ACEKID' in b_combined: return 'other'
+                        if b1 == 'SK' or b2 == 'SK': return 'other'
+                        if p == 'OTHER' and any(x in b2 for x in ['DOJAKO', 'FIRDA', 'MAMASCHOICE', 'NOURA']): return 'jc_fulfilment'
                         fulfilment_brands = ['DOJAKO', 'FIRDA', 'NOURA', 'MAMASCHOICE']
                         for fb in fulfilment_brands:
-                            if fb in b_combined:
-                                return 'jc_fulfilment'
-                                
+                            if fb in b_combined: return 'jc_fulfilment'
                         return 'jc_enabler'
 
                     final_df['Master_Category'] = final_df.apply(lookup_kondisi_rule, axis=1)
-
                     val_jc_enabler = int((final_df['Master_Category'] == 'jc_enabler').sum())
                     val_jc_fulfilment = int((final_df['Master_Category'] == 'jc_fulfilment').sum())
                     val_other = int((final_df['Master_Category'] == 'other').sum())
-                    
                     val_traceable = int(final_df['Master_Tracking'].eq('traceable').sum())
                     val_untraceable = int(final_df['Master_Tracking'].eq('untraceable').sum())
 
@@ -899,29 +843,20 @@ with st.container():
                     worksheet_db.set_column('Q:Q', 2, black_divider)
                     worksheet_db.set_column('T:T', 2, black_divider)
                     worksheet_db.set_column('Y:Y', 2, black_divider)
-                    
-                    worksheet_db.set_column('A:A', 5)
-                    worksheet_db.set_column('B:B', 18)
-                    worksheet_db.set_column('C:C', 12)
-                    worksheet_db.set_column('D:D', 35)
-
-                    worksheet_db.set_column('F:F', 5)
-                    worksheet_db.set_column('G:G', 18)
-                    worksheet_db.set_column('H:I', 12)
-                    
-                    worksheet_db.set_column('L:L', 5)
-                    worksheet_db.set_column('M:M', 25)
-                    worksheet_db.set_column('N:O', 15)
-                    
-                    worksheet_db.set_column('U:U', 5)
-                    worksheet_db.set_column('V:V', 15)
-                    worksheet_db.set_column('W:W', 10)
-
-                    worksheet_db.set_column('Z:Z', 5)
-                    worksheet_db.set_column('AA:AA', 25)
-                    worksheet_db.set_column('AB:AB', 25)
+                    worksheet_db.set_column('A:A', 5); worksheet_db.set_column('B:B', 18); worksheet_db.set_column('C:C', 12); worksheet_db.set_column('D:D', 35)
+                    worksheet_db.set_column('F:F', 5); worksheet_db.set_column('G:G', 18); worksheet_db.set_column('H:I', 12)
+                    worksheet_db.set_column('L:L', 5); worksheet_db.set_column('M:M', 25); worksheet_db.set_column('N:O', 15)
+                    worksheet_db.set_column('U:U', 5); worksheet_db.set_column('V:V', 15); worksheet_db.set_column('W:W', 10)
+                    worksheet_db.set_column('Z:Z', 5); worksheet_db.set_column('AA:AA', 25); worksheet_db.set_column('AB:AB', 25)
 
                 st.session_state['excel_data'] = output.getvalue()
+                st.session_state['summary_metrics'] = {
+                    "Total Delivered": f"{val_delivered:,}",
+                    "Delivery Rate": val_delivery_rate,
+                    "Target Order": f"{val_target:,}",
+                    "Untraceable": f"{val_untraceable:,}"
+                }
+                
                 progress_bar.progress(100, text="Processing Selesai! (100%)")
                 progress_bar.empty()
 
@@ -939,14 +874,27 @@ with st.container():
 # ==========================================
 if 'processed_result' in st.session_state:
     res_df = st.session_state['processed_result']
+    metrics = st.session_state.get('summary_metrics', {})
     
     with st.container():
         st.markdown('<div class="modern-card">', unsafe_allow_html=True)
-        st.markdown('<h3>📊 Preview Hasil Data Outbound</h3>', unsafe_allow_html=True)
+        st.markdown('<h3><span style="background:#f0fdf4; padding:8px; border-radius:8px;">📊</span> Summary Dashboard</h3>', unsafe_allow_html=True)
+
+        # Metric Cards
+        m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+        with m_col1:
+            st.markdown(f'<div class="metric-card"><div class="metric-label">Delivered</div><div class="metric-value">{metrics.get("Total Delivered", "0")}</div></div>', unsafe_allow_html=True)
+        with m_col2:
+            st.markdown(f'<div class="metric-card"><div class="metric-label">Delivery Rate</div><div class="metric-value">{metrics.get("Delivery Rate", "0%")}</div></div>', unsafe_allow_html=True)
+        with m_col3:
+            st.markdown(f'<div class="metric-card"><div class="metric-label">Target Order</div><div class="metric-value">{metrics.get("Target Order", "0")}</div></div>', unsafe_allow_html=True)
+        with m_col4:
+            color = "#ef4444" if int(metrics.get("Untraceable", "0").replace(",", "")) > 0 else "#2563eb"
+            st.markdown(f'<div class="metric-card"><div class="metric-label">Untraceable</div><div class="metric-value" style="color: {color};">{metrics.get("Untraceable", "0")}</div></div>', unsafe_allow_html=True)
 
         st.markdown(f"""
             <div class="result-notif result-success">
-                ✅ Berhasil memproses total {len(res_df):,} baris data! Laporan siap diunduh.
+                ✅ Berhasil memproses total <b>{len(res_df):,}</b> baris data! Laporan siap diunduh.
             </div>
         """, unsafe_allow_html=True)
 
@@ -957,35 +905,33 @@ if 'processed_result' in st.session_state:
             if untraceable_count > 0:
                 st.markdown(f"""
                     <div class="result-notif result-warning">
-                        ⚠️ **PERINGATAN DATA UNTRACEABLE:** Ditemukan **{untraceable_count}** paket dengan status **Untraceable**!
+                        ⚠️ <b>PERINGATAN DATA UNTRACEABLE:</b> Ditemukan <b>{untraceable_count}</b> paket dengan status Untraceable!
                     </div>
                 """, unsafe_allow_html=True)
                 
-                with st.expander("🔍 **Summary Preview Data Untraceable (Klik untuk buka/tutup)**", expanded=True):
+                with st.expander("🔍 Detail Data Untraceable", expanded=False):
                     col_u1, col_u2 = st.columns([1, 2])
-                    
                     with col_u1:
-                        st.markdown("**Ringkasan Jumlah Paket per Status:**")
+                        st.markdown("**Ringkasan per Status:**")
                         status_summary = untraceable_data['Status'].value_counts().reset_index()
                         status_summary.columns = ['Status', 'Jumlah Paket']
                         st.dataframe(status_summary, use_container_width=True, hide_index=True)
-                    
                     with col_u2:
-                        st.markdown("**Detail Paket Untraceable:**")
+                        st.markdown("**Detail Paket:**")
                         cols_to_show = [c for c in ['No', 'WMS Order', 'ERP Document Number', 'Platform', 'Kurir', 'Status', 'Tracking#/PRO#'] if c in untraceable_data.columns]
                         st.dataframe(untraceable_data[cols_to_show], use_container_width=True, hide_index=True)
             else:
                 st.info("🎉 Seluruh paket berstatus **Traceable** (0 Untraceable).")
 
-        display_df = res_df.drop(columns=['Master_Tracking'], errors='ignore')
         st.markdown("##### Pratinjau Seluruh Data:")
+        display_df = res_df.drop(columns=['Master_Tracking'], errors='ignore')
         st.dataframe(display_df, use_container_width=True, hide_index=True)
 
         st.write("")
         col_down1, col_down2, col_down3 = st.columns([1, 2, 1])
         with col_down2:
             st.download_button(
-                label="📥 Download Laporan Excel",
+                label="📥 Download Laporan Excel (.xlsx)",
                 data=st.session_state['excel_data'],
                 file_name="Laporan_Daily_HO_Outbound.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -994,3 +940,10 @@ if 'processed_result' in st.session_state:
             )
 
         st.markdown('</div>', unsafe_allow_html=True)
+
+# Footer
+st.markdown("""
+    <div style="text-align: center; padding: 20px; color: #94a3b8; font-size: 0.8rem;">
+        Logistics Outbound Auto-Processor v2.0 • Build with ❤️ for Efficiency
+    </div>
+""", unsafe_allow_html=True)
