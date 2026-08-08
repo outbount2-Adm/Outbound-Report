@@ -323,6 +323,12 @@ with st.container():
                 res['Tracking#/PRO#'] = res[col_track].apply(lambda x: str(x).strip() if pd.notna(x) and str(x).strip() != 'nan' else '') if col_track else ''
                 res['PlatformOrder'] = res[col_ref].apply(lambda x: str(x).strip() if pd.notna(x) and str(x).strip() != 'nan' else '') if col_ref else ''
 
+                # Pengecekan Kolom Resi Manual HO
+                col_resi_manual = next((c for c in df_ho.columns if 'resi manual' in c.lower() or 'manual resi' in c.lower()), None)
+                if col_resi_manual:
+                    resi_manual_vals = df_ho[col_resi_manual].apply(lambda x: str(x).strip() if pd.notna(x) and str(x).strip() != 'nan' else '')
+                    res['PlatformOrder'] = np.where(resi_manual_vals != '', resi_manual_vals, res['PlatformOrder'])
+
                 col_sales = next((c for c in res.columns if 'sales channel' in c.lower()), None)
                 res['Platform'] = res[col_sales] if col_sales else np.nan
                 
@@ -336,6 +342,9 @@ with st.container():
                     kondisi_ck | kondisi_kosong, "Other",
                     np.where(plat_is_na, "Webstore", res['Platform'])
                 )
+
+                # Jika Platform hasilnya "independent", ubah menjadi "Other"
+                res['Platform'] = np.where(res['Platform'].astype(str).str.strip().str.lower() == 'independent', 'Other', res['Platform'])
 
                 is_platform_other = res['Platform'].astype(str).str.strip() == 'Other'
 
@@ -629,15 +638,6 @@ with st.container():
 
                 cols_sla_str = ['Pay-Created', 'Created-Released', 'Released-Pick', 'Pick-Pack', 'Pack-Collect', 'Collect-Manifest', 'Manifest-Endshipdate']
                 df_sec = pd.DataFrame({col: get_safe_seconds(res[col]) for col in cols_sla_str})
-                max_sec = df_sec.max(axis=1)
-                
-                max_is_neg = max_sec < 0
-                max_sec_abs = abs(max_sec)
-                mh = (max_sec_abs // 3600).astype(int)
-                mm = ((max_sec_abs % 3600) // 60).astype(int)
-                ms = (max_sec_abs % 60).astype(int)
-                res['Max'] = mh.astype(str).str.zfill(2) + ":" + mm.astype(str).str.zfill(2) + ":" + ms.astype(str).str.zfill(2)
-                res['Max'] = np.where(max_is_neg, "-" + res['Max'], res['Max'])
 
                 res['System'] = np.nan
                 res['Admin_Akhir'] = np.nan
@@ -659,7 +659,7 @@ with st.container():
                     'total order amount', 'Dokumen', 'Attachment', 'Times Proses Kurir', 'Times Proses Kurir to Shpped Date', 
                     'Status Manifest', 'Status Late', 'Remark Late', 'Pay-Created', 'Created-Released', 'Released-Pick', 
                     'Pick-Pack', 'Pack-Collect', 'Collect-Manifest', 'Manifest-Endshipdate', 'Max', 'System', 'Admin_Akhir', 
-                    'Picker', 'Packer', 'Outbound', 'Kurir_Akhir', 'Late Proses By'
+                    'Picker', 'Packer', 'Outbound', 'Kurir_Akhir', 'Late Proses Data Dummy', 'Late Proses By'
                 ]
                 
                 for col in kolom_final:
@@ -667,6 +667,7 @@ with st.container():
                 final_df = res[kolom_final].copy()
 
                 final_df = final_df.rename(columns={'Admin_Akhir': 'Admin', 'Kurir_Akhir': 'Kurir'})
+                final_df = final_df.drop(columns=['Late Proses Data Dummy'], errors='ignore')
                 final_df = final_df.loc[:, ~final_df.columns.duplicated()]
 
                 master_df = dfs.get('master', pd.DataFrame())
@@ -707,6 +708,26 @@ with st.container():
                         if val_plat != 'nan' and val_plat != '':
                             worksheet_wms.write_string(row_num + 1, col_idx_plat, val_plat)
 
+                        excel_row = row_num + 2
+                        
+                        worksheet_wms.write_formula(row_num + 1, 46, f"=MAX(AN{excel_row}:AT{excel_row})")
+                        worksheet_wms.write_formula(row_num + 1, 47, f"=AU{excel_row}=AN{excel_row}")
+                        worksheet_wms.write_formula(row_num + 1, 48, f"=AU{excel_row}=AO{excel_row}")
+                        worksheet_wms.write_formula(row_num + 1, 49, f"=AU{excel_row}=AP{excel_row}")
+                        worksheet_wms.write_formula(row_num + 1, 50, f"=AU{excel_row}=AQ{excel_row}")
+                        worksheet_wms.write_formula(row_num + 1, 51, f"=AU{excel_row}=AR{excel_row}")
+                        worksheet_wms.write_formula(row_num + 1, 52, f"=AU{excel_row}=AS{excel_row}")
+                        
+                        formula_late_by = (
+                            f'=IF(AV{excel_row}, "System", '
+                            f'IF(AW{excel_row}, "Admin", '
+                            f'IF(AX{excel_row}, "Picker", '
+                            f'IF(AY{excel_row}, "Packer", '
+                            f'IF(AZ{excel_row}, "Outbound", '
+                            f'IF(BA{excel_row}, "Kurir", ""))))))'
+                        )
+                        worksheet_wms.write_formula(row_num + 1, 53, formula_late_by)
+
                     for col_num, value in enumerate(df_to_export.columns.values):
                         worksheet_wms.write(0, col_num, value, format_header)
                         worksheet_wms.set_column(col_num, col_num, 16)
@@ -734,6 +755,27 @@ with st.container():
                     df_status = final_df['Status Manifest'].replace('', 'Unknown').value_counts().reset_index()
                     df_status.columns = ['Status_Manifest', 'qty']
                     df_status.insert(0, 'No', range(1, len(df_status) + 1))
+
+                    df_kurir_manifest = pd.DataFrame()
+                    if 'Kurir' in final_df.columns and 'Times Proses Kurir to Shpped Date' in final_df.columns:
+                        temp_k = final_df[['Kurir', 'Times Proses Kurir to Shpped Date']].copy()
+                        temp_k['sec'] = get_safe_seconds(temp_k['Times Proses Kurir to Shpped Date'])
+                        grouped_k = temp_k.groupby('Kurir')['sec'].mean().reset_index()
+                        
+                        def sec_to_hhmmss(s):
+                            if pd.isna(s) or s <= 0: return "0:00:00"
+                            s = int(s)
+                            h = s // 3600
+                            m = (s % 3600) // 60
+                            sec = s % 60
+                            return f"{h}:{m:02d}:{sec:02d}"
+                            
+                        grouped_k['Avg_Process_Time'] = grouped_k['sec'].apply(sec_to_hhmmss)
+                        df_kurir_manifest = grouped_k[['Kurir', 'Avg_Process_Time']].copy()
+                        df_kurir_manifest.columns = ['Courier_Name', 'Avg_Times_Proses_Kurir_to_Shipped']
+                        df_kurir_manifest.insert(0, 'No', range(1, len(df_kurir_manifest) + 1))
+                    else:
+                        df_kurir_manifest = pd.DataFrame(columns=['No', 'Courier_Name', 'Avg_Times_Proses_Kurir_to_Shipped'])
 
                     df_os_open = dfs.get('order_summary_open', dfs.get('order_summary', pd.DataFrame()))
                     col_ref_sum = next((c for c in df_os_open.columns if 'ref#' in c.lower()), None)
@@ -786,7 +828,7 @@ with st.container():
                     val_avg_shipped = get_avg_time_str(final_df['Packing to Shipped Date']) if 'Packing to Shipped Date' in final_df.columns else "0:00:00"
                     val_avg_handover = get_avg_time_str(final_df['Shipped Date to Handover']) if 'Shipped Date to Handover' in final_df.columns else "0:00:00"
 
-                    # --- EVALUASI KONDISI IF BARU (MUTLAK BERDASARKAN ATURAN BARU) ---
+                    # --- EVALUASI KONDISI KATEGORI (DENGAN TAMBAHAN ATURAN PLATFORM OTHER & BRAND 2) ---
                     def lookup_kondisi_rule(row):
                         b1 = str(row.get('Brand', '')).strip().upper()
                         b2 = str(row.get('Brand 2', '')).strip().upper()
@@ -794,25 +836,27 @@ with st.container():
                         
                         b_combined = (b1 + " " + b2).replace("'", "").replace(" ", "")
                         
-                        # 1. Kecuali Webstore Acekid dan Other SK masuk ke Other
+                        # Aturan Lain (Other)
                         if 'WEBSTORE' in p and 'ACEKID' in b_combined:
                             return 'other'
                         if b1 == 'SK' or b2 == 'SK':
                             return 'other'
                             
-                        # 2. Brand Dojako, Firda, Noura, Mama's Choice mutlak masuk ke jc_fulfilment
+                        # Tambahan Aturan Baru: Jika Platform bernilai 'OTHER' dan Brand 2 adalah Dojako, Firda, Mama's Choice, atau Noura -> jc_fulfilment
+                        if p == 'OTHER':
+                            if any(x in b2 for x in ['DOJAKO', 'FIRDA', 'MAMASCHOICE', 'NOURA']):
+                                return 'jc_fulfilment'
+
+                        # Aturan Mutlak Fulfillment Utama
                         fulfilment_brands = ['DOJAKO', 'FIRDA', 'NOURA', 'MAMASCHOICE']
                         for fb in fulfilment_brands:
                             if fb in b_combined:
                                 return 'jc_fulfilment'
                                 
-                        # 3. Selain itu masuk ke jc_enabler
                         return 'jc_enabler'
 
-                    # Terapkan formula IF ke setiap baris data
                     final_df['Master_Category'] = final_df.apply(lookup_kondisi_rule, axis=1)
 
-                    # --- METODE COUNT IF (EXACT MATCH) ---
                     val_jc_enabler = int((final_df['Master_Category'] == 'jc_enabler').sum())
                     val_jc_fulfilment = int((final_df['Master_Category'] == 'jc_fulfilment').sum())
                     val_other = int((final_df['Master_Category'] == 'other').sum())
@@ -844,15 +888,17 @@ with st.container():
                                 fmt = cell_format_left if isinstance(val, str) else cell_format_db
                                 worksheet_db.write(start_row + r_idx + 1, start_col + c_idx, val, fmt)
 
-                    write_custom_table(df_metrics, 1, 0)  
-                    write_custom_table(df_brand, 1, 5)    
-                    write_custom_table(df_kurir, 1, 11)   
-                    write_custom_table(df_status, 1, 20)  
+                    write_custom_table(df_metrics, 1, 0)          
+                    write_custom_table(df_brand, 1, 5)            
+                    write_custom_table(df_kurir, 1, 11)           
+                    write_custom_table(df_status, 1, 20)          
+                    write_custom_table(df_kurir_manifest, 1, 25)  
                     
                     worksheet_db.set_column('E:E', 2, black_divider)
                     worksheet_db.set_column('K:K', 2, black_divider)
                     worksheet_db.set_column('Q:Q', 2, black_divider)
                     worksheet_db.set_column('T:T', 2, black_divider)
+                    worksheet_db.set_column('Y:Y', 2, black_divider)
                     
                     worksheet_db.set_column('A:A', 5)
                     worksheet_db.set_column('B:B', 18)
@@ -870,6 +916,10 @@ with st.container():
                     worksheet_db.set_column('U:U', 5)
                     worksheet_db.set_column('V:V', 15)
                     worksheet_db.set_column('W:W', 10)
+
+                    worksheet_db.set_column('Z:Z', 5)
+                    worksheet_db.set_column('AA:AA', 25)
+                    worksheet_db.set_column('AB:AB', 25)
 
                 st.session_state['excel_data'] = output.getvalue()
                 progress_bar.progress(100, text="Processing Selesai! (100%)")
