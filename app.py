@@ -786,42 +786,27 @@ with st.container():
                     val_avg_shipped = get_avg_time_str(final_df['Packing to Shipped Date']) if 'Packing to Shipped Date' in final_df.columns else "0:00:00"
                     val_avg_handover = get_avg_time_str(final_df['Shipped Date to Handover']) if 'Shipped Date to Handover' in final_df.columns else "0:00:00"
 
-                    # --- EVALUASI KONDISI IF BERTINGKAT (AKURASI 100%) ---
+                    # --- EVALUASI KONDISI IF BARU (MUTLAK BERDASARKAN ATURAN BARU) ---
                     def lookup_kondisi_rule(row):
-                        p_raw = str(row.get('Platform', '')).strip().upper()
                         b1 = str(row.get('Brand', '')).strip().upper()
                         b2 = str(row.get('Brand 2', '')).strip().upper()
+                        p = str(row.get('Platform', '')).strip().upper()
                         
-                        # Standarisasi nama platform untuk meminimalisir typo
-                        p = 'OTHER'
-                        if 'TIKTOK' in p_raw: p = 'TIKTOK'
-                        elif 'SHOPEE' in p_raw: p = 'SHOPEE'
-                        elif 'LAZADA' in p_raw: p = 'LAZADA'
-                        elif 'AKULAKU' in p_raw: p = 'AKULAKU'
-                        elif 'BLIBLI' in p_raw: p = 'BLIBLI'
-                        elif 'WEBSTORE' in p_raw: p = 'WEBSTORE'
-                        
-                        # Gabung brand dan hilangkan karakter unik/spasi untuk string match
                         b_combined = (b1 + " " + b2).replace("'", "").replace(" ", "")
                         
-                        # 1. KONDISI OTHER (Akurat 56 data)
-                        if p == 'WEBSTORE' and 'ACEKID' in b_combined:
+                        # 1. Kecuali Webstore Acekid dan Other SK masuk ke Other
+                        if 'WEBSTORE' in p and 'ACEKID' in b_combined:
                             return 'other'
                         if b1 == 'SK' or b2 == 'SK':
                             return 'other'
                             
-                        # 2. KONDISI FULFILMENT (Strict Constraint berdasarkan platform)
-                        if p == 'TIKTOK':
-                            if any(x in b_combined for x in ['FIRDA', 'MAMASCHOICE', 'DOJAKO', 'LOREAL']):
-                                return 'jc_fulfilment'
-                        elif p == 'SHOPEE':
-                            if any(x in b_combined for x in ['FIRDA', 'DOJAKO']):
-                                return 'jc_fulfilment'
-                        elif p == 'LAZADA':
-                            if 'MAMASCHOICE' in b_combined:
+                        # 2. Brand Dojako, Firda, Noura, Mama's Choice mutlak masuk ke jc_fulfilment
+                        fulfilment_brands = ['DOJAKO', 'FIRDA', 'NOURA', 'MAMASCHOICE']
+                        for fb in fulfilment_brands:
+                            if fb in b_combined:
                                 return 'jc_fulfilment'
                                 
-                        # 3. KONDISI ENABLER (Menangkap seluruh data sisa & 160 anomali)
+                        # 3. Selain itu masuk ke jc_enabler
                         return 'jc_enabler'
 
                     # Terapkan formula IF ke setiap baris data
