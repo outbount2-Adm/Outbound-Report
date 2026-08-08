@@ -550,8 +550,6 @@ with st.container():
                 if col not in res.columns: res[col] = np.nan
             final_df = res[kolom_final].copy()
 
-            # PERBAIKAN: Gunakan spasi di belakang nama ('Admin ' dan 'Kurir ') 
-            # agar tidak dianggap duplikat oleh Pandas dengan kolom Admin & Kurir yang ada di depan
             final_df = final_df.rename(columns={'Admin_Akhir': 'Admin ', 'Kurir_Akhir': 'Kurir '})
             final_df = final_df.drop(columns=['Late Proses Data Dummy'], errors='ignore')
             final_df = final_df.loc[:, ~final_df.columns.duplicated()]
@@ -592,13 +590,16 @@ with st.container():
 
                     excel_row = row_num + 2
                     
-                    worksheet_wms.write_formula(row_num + 1, 46, f"=MAX(VALUE(AN{excel_row}), VALUE(AO{excel_row}), VALUE(AP{excel_row}), VALUE(AQ{excel_row}), VALUE(AR{excel_row}), VALUE(AS{excel_row}), VALUE(AT{excel_row}))", format_time)
-                    worksheet_wms.write_formula(row_num + 1, 47, f"=AU{excel_row}=AN{excel_row}")
-                    worksheet_wms.write_formula(row_num + 1, 48, f"=AU{excel_row}=AO{excel_row}")
-                    worksheet_wms.write_formula(row_num + 1, 49, f"=AU{excel_row}=AP{excel_row}")
-                    worksheet_wms.write_formula(row_num + 1, 50, f"=AU{excel_row}=AQ{excel_row}")
-                    worksheet_wms.write_formula(row_num + 1, 51, f"=AU{excel_row}=AR{excel_row}")
-                    worksheet_wms.write_formula(row_num + 1, 52, f"=AU{excel_row}=AS{excel_row}")
+                    # ==========================================
+                    # BAGIAN PERBAIKAN FORMULA EXCEL
+                    # ==========================================
+                    worksheet_wms.write_formula(row_num + 1, 46, f"=MAX(IFERROR(VALUE(AN{excel_row}),0), IFERROR(VALUE(AO{excel_row}),0), IFERROR(VALUE(AP{excel_row}),0), IFERROR(VALUE(AQ{excel_row}),0), IFERROR(VALUE(AR{excel_row}),0), IFERROR(VALUE(AS{excel_row}),0), IFERROR(VALUE(AT{excel_row}),0))", format_time)
+                    worksheet_wms.write_formula(row_num + 1, 47, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AN{excel_row}), FALSE))")
+                    worksheet_wms.write_formula(row_num + 1, 48, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AO{excel_row}), FALSE))")
+                    worksheet_wms.write_formula(row_num + 1, 49, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AP{excel_row}), FALSE))")
+                    worksheet_wms.write_formula(row_num + 1, 50, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AQ{excel_row}), FALSE))")
+                    worksheet_wms.write_formula(row_num + 1, 51, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AR{excel_row}), FALSE))")
+                    worksheet_wms.write_formula(row_num + 1, 52, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AS{excel_row}), FALSE))")
                     
                     formula_late_by = (
                         f'=IF(AV{excel_row}, "System", '
