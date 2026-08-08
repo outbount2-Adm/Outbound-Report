@@ -292,9 +292,41 @@ with st.container():
                 np.where(plat_is_na, "Webstore", res['Platform'])
             )
 
-            res['Platform'] = np.where(res['Platform'].astype(str).str.strip().str.lower() == 'independent', 'Other', res['Platform'])
+            # ==============================================================
+            # 1. AMBIL DATA BRAND TERLEBIH DAHULU SEBELUM UBAH PLATFORM
+            # ==============================================================
+            def safe_key(x):
+                if pd.isna(x): return ""
+                s = str(x).strip()
+                return s[:-2] if s.endswith('.0') else s
+
+            col_store = next((c for c in res.columns if 'store number' in c.lower()), None)
+            res['Store number'] = res[col_store] if col_store else np.nan
+            
+            if 'Store number' in res.columns:
+                res['Brand'] = res['Store number'].apply(safe_key).map(lambda x: master_store_db.get(x, {}).get('Brand', np.nan))
+                res['Brand 2'] = res['Store number'].apply(safe_key).map(lambda x: master_store_db.get(x, {}).get('Brand2', np.nan))
+            else:
+                res['Brand'] = np.nan
+                res['Brand 2'] = np.nan
+
+            # ==============================================================
+            # 2. LOGIKA REQUEST: Platform Independent + Brand 2 Tertentu -> Other
+            # ==============================================================
+            is_independent = res['Platform'].astype(str).str.strip().str.lower() == 'independent'
+            
+            # Memakai str.contains agar penulisan Mama's Choice, MamasChoice, dll tetap terbaca
+            is_target_brand = res['Brand 2'].astype(str).str.upper().str.contains('FIRDA|DOJAKO|NOURA|MAMA', na=False)
+            
+            # Ubah platform menjadi Other HANYA JIKA kedua kondisi terpenuhi
+            res['Platform'] = np.where(is_independent & is_target_brand, 'Other', res['Platform'])
+            
+            # Tentukan status 'Other' untuk fallback data kosong
             is_platform_other = res['Platform'].astype(str).str.strip() == 'Other'
 
+            # ==============================================================
+            # 3. FALLBACK UNTUK ERP, TRACKING, PLATFORM ORDER, & BRAND
+            # ==============================================================
             erp_empty = res['ERP Document Number'].isna() | (res['ERP Document Number'].astype(str).str.strip() == '') | (res['ERP Document Number'].astype(str).str.lower() == 'nan')
             res['ERP Document Number'] = np.where(erp_empty & is_platform_other, res['WMS Order'], res['ERP Document Number'])
 
@@ -304,7 +336,15 @@ with st.container():
             platord_empty = res['PlatformOrder'].isna() | (res['PlatformOrder'].astype(str).str.strip() == '') | (res['PlatformOrder'].astype(str).str.lower() == 'nan')
             res['PlatformOrder'] = np.where(platord_empty & is_platform_other, res['WMS Order'], res['PlatformOrder'])
 
-            # Operation Log & Staged User
+            brand_is_na = res['Brand'].isna() | (res['Brand'].astype(str).str.strip() == '') | (res['Brand'].astype(str).str.lower() == 'nan')
+            brand2_is_na = res['Brand 2'].isna() | (res['Brand 2'].astype(str).str.strip() == '') | (res['Brand 2'].astype(str).str.lower() == 'nan')
+
+            res['Brand'] = np.where(brand_is_na & is_platform_other, "SK", np.where(brand_is_na, "AceKid", res['Brand']))
+            res['Brand 2'] = np.where(brand2_is_na & is_platform_other, "SK", np.where(brand2_is_na, "AceKid", res['Brand 2']))
+
+            # ==============================================================
+            # 4. OPERATION LOG & STAGED USER
+            # ==============================================================
             df_op = dfs['op_log']
             if not df_op.empty and 'Event' in df_op.columns and 'WMS Order#' in df_op.columns and 'operator' in df_op.columns:
                 ev_col = df_op['Event'].iloc[:, 0] if isinstance(df_op['Event'], pd.DataFrame) else df_op['Event']
@@ -327,26 +367,6 @@ with st.container():
                 staged_empty = res['Staged User'].isna() | (res['Staged User'].astype(str).str.strip() == '') | (res['Staged User'].astype(str).str.lower() == 'nan')
                 res['Staged User'] = np.where(staged_empty, df_ho[col_pic_ho], res['Staged User'])
 
-            def safe_key(x):
-                if pd.isna(x): return ""
-                s = str(x).strip()
-                return s[:-2] if s.endswith('.0') else s
-
-            col_store = next((c for c in res.columns if 'store number' in c.lower()), None)
-            res['Store number'] = res[col_store] if col_store else np.nan
-            
-            if 'Store number' in res.columns:
-                res['Brand'] = res['Store number'].apply(safe_key).map(lambda x: master_store_db.get(x, {}).get('Brand', np.nan))
-                res['Brand 2'] = res['Store number'].apply(safe_key).map(lambda x: master_store_db.get(x, {}).get('Brand2', np.nan))
-            else:
-                res['Brand'] = np.nan
-                res['Brand 2'] = np.nan
-            
-            brand_is_na = res['Brand'].isna() | (res['Brand'].astype(str).str.strip() == '') | (res['Brand'].astype(str).str.lower() == 'nan')
-            brand2_is_na = res['Brand 2'].isna() | (res['Brand 2'].astype(str).str.strip() == '') | (res['Brand 2'].astype(str).str.lower() == 'nan')
-
-            res['Brand'] = np.where(brand_is_na & is_platform_other, "SK", np.where(brand_is_na, "AceKid", res['Brand']))
-            res['Brand 2'] = np.where(brand2_is_na & is_platform_other, "SK", np.where(brand2_is_na, "AceKid", res['Brand 2']))
             res['Admin'] = current_admin
 
             # Kalkulasi Waktu & SLA
