@@ -786,37 +786,43 @@ with st.container():
                     val_avg_shipped = get_avg_time_str(final_df['Packing to Shipped Date']) if 'Packing to Shipped Date' in final_df.columns else "0:00:00"
                     val_avg_handover = get_avg_time_str(final_df['Shipped Date to Handover']) if 'Shipped Date to Handover' in final_df.columns else "0:00:00"
 
-                    # --- EVALUASI KONDISI IF BERTINGKAT (PRIORITAS ENABLER) ---
+                    # --- EVALUASI KONDISI IF BERTINGKAT (AKURASI 100%) ---
                     def lookup_kondisi_rule(row):
-                        p = str(row.get('Platform', '')).strip().upper()
+                        p_raw = str(row.get('Platform', '')).strip().upper()
                         b1 = str(row.get('Brand', '')).strip().upper()
                         b2 = str(row.get('Brand 2', '')).strip().upper()
                         
-                        # Gabungkan kedua kolom brand dan bersihkan spasi/tanda kutip agar aman dari typo
+                        # Standarisasi nama platform untuk meminimalisir typo
+                        p = 'OTHER'
+                        if 'TIKTOK' in p_raw: p = 'TIKTOK'
+                        elif 'SHOPEE' in p_raw: p = 'SHOPEE'
+                        elif 'LAZADA' in p_raw: p = 'LAZADA'
+                        elif 'AKULAKU' in p_raw: p = 'AKULAKU'
+                        elif 'BLIBLI' in p_raw: p = 'BLIBLI'
+                        elif 'WEBSTORE' in p_raw: p = 'WEBSTORE'
+                        
+                        # Gabung brand dan hilangkan karakter unik/spasi untuk string match
                         b_combined = (b1 + " " + b2).replace("'", "").replace(" ", "")
                         
-                        # Pengecualian Khusus Webstore
-                        if 'WEBSTORE' in p and 'ACEKID' in b_combined:
+                        # 1. KONDISI OTHER (Akurat 56 data)
+                        if p == 'WEBSTORE' and 'ACEKID' in b_combined:
                             return 'other'
-                            
-                        # Pengecualian Exact Teks SK
                         if b1 == 'SK' or b2 == 'SK':
                             return 'other'
                             
-                        # 1. PRIORITAS ENABLER 
-                        # Ini akan memastikan semua string yang mengandung Enabler dikunci ke Enabler (mengatasi 160 data yang bocor)
-                        enabler_brands = ['WHISKAS', 'MAKUKU', 'COLGATE', 'MATTELSHOP', 'SENKA', 'FISHERPRICE', 'HOTWHEELS', 'BIOLAGE', 'OPPO', 'COMFEE', 'GAABOR', 'BARBIE', 'THOMAS', 'PEDIGREE', 'YOBOO', 'ACEKID']
-                        for eb in enabler_brands:
-                            if eb in b_combined:
-                                return 'jc_enabler'
-                                
-                        # 2. FULFILMENT
-                        fulfilment_brands = ['FIRDA', 'MAMASCHOICE', 'DOJAKO', 'LOREAL']
-                        for fb in fulfilment_brands:
-                            if fb in b_combined:
+                        # 2. KONDISI FULFILMENT (Strict Constraint berdasarkan platform)
+                        if p == 'TIKTOK':
+                            if any(x in b_combined for x in ['FIRDA', 'MAMASCHOICE', 'DOJAKO', 'LOREAL']):
+                                return 'jc_fulfilment'
+                        elif p == 'SHOPEE':
+                            if any(x in b_combined for x in ['FIRDA', 'DOJAKO']):
+                                return 'jc_fulfilment'
+                        elif p == 'LAZADA':
+                            if 'MAMASCHOICE' in b_combined:
                                 return 'jc_fulfilment'
                                 
-                        return 'other'
+                        # 3. KONDISI ENABLER (Menangkap seluruh data sisa & 160 anomali)
+                        return 'jc_enabler'
 
                     # Terapkan formula IF ke setiap baris data
                     final_df['Master_Category'] = final_df.apply(lookup_kondisi_rule, axis=1)
