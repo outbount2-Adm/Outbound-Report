@@ -549,7 +549,11 @@ with st.container():
             for col in kolom_final:
                 if col not in res.columns: res[col] = np.nan
             final_df = res[kolom_final].copy()
-            final_df = final_df.rename(columns={'Admin_Akhir': 'Admin', 'Kurir_Akhir': 'Kurir'}).drop(columns=['Late Proses Data Dummy'], errors='ignore')
+
+            # PERBAIKAN: Gunakan spasi di belakang nama ('Admin ' dan 'Kurir ') 
+            # agar tidak dianggap duplikat oleh Pandas dengan kolom Admin & Kurir yang ada di depan
+            final_df = final_df.rename(columns={'Admin_Akhir': 'Admin ', 'Kurir_Akhir': 'Kurir '})
+            final_df = final_df.drop(columns=['Late Proses Data Dummy'], errors='ignore')
             final_df = final_df.loc[:, ~final_df.columns.duplicated()]
 
             master_df = dfs.get('master', pd.DataFrame())
@@ -588,7 +592,6 @@ with st.container():
 
                     excel_row = row_num + 2
                     
-                    # PERBAIKAN UTAMA: Menggunakan VALUE() agar fungsi MAX() sukses mengevaluasi string waktu AN-AT
                     worksheet_wms.write_formula(row_num + 1, 46, f"=MAX(VALUE(AN{excel_row}), VALUE(AO{excel_row}), VALUE(AP{excel_row}), VALUE(AQ{excel_row}), VALUE(AR{excel_row}), VALUE(AS{excel_row}), VALUE(AT{excel_row}))", format_time)
                     worksheet_wms.write_formula(row_num + 1, 47, f"=AU{excel_row}=AN{excel_row}")
                     worksheet_wms.write_formula(row_num + 1, 48, f"=AU{excel_row}=AO{excel_row}")
