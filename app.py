@@ -443,6 +443,7 @@ with st.container():
                 res['Kota'] = res[next((c for c in res.columns if 'ship to city' in c.lower()), None)] if next((c for c in res.columns if 'ship to city' in c.lower()), None) else np.nan
                 res['Provinsi'] = res[next((c for c in res.columns if 'ship to st' in c.lower() or 'prov' in c.lower()), None)] if next((c for c in res.columns if 'ship to st' in c.lower() or 'prov' in c.lower()), None) else np.nan
 
+                # --- PERBAIKAN LOOKUP STATUS & PAYMENT METHOD (Poin 2 & 4) ---
                 df_erp = dfs['erp']
                 col_erp_order = next((c for c in df_erp.columns if 'erp order number' in c.lower()), None) if not df_erp.empty else None
                 if col_erp_order and 'ERP Document Number' in res.columns:
@@ -450,14 +451,28 @@ with st.container():
                     col_status = next((c for c in df_erp.columns if 'online status' in c.lower()), None)
                     col_payment = next((c for c in df_erp.columns if 'payment method' in c.lower()), None)
                     col_amount = next((c for c in df_erp.columns if 'total order amount' in c.lower()), None)
+                    
                     res_erp_m = res[['ERP Document Number']].merge(df_erp[[col_erp_order] + ([col_status] if col_status else []) + ([col_payment] if col_payment else []) + ([col_amount] if col_amount else [])], left_on='ERP Document Number', right_on=col_erp_order, how='left')
+                    
                     res['Status'] = res_erp_m[col_status] if col_status else np.nan
                     res['total order amount'] = res_erp_m[col_amount] if col_amount else np.nan
-                    res['Payment Menthood'] = res_erp_m[col_payment].apply(lambda x: 'Non COD' if str(x).strip().lower() in ['在线支付', 'nan', 'none', ''] else 'COD') if col_payment else 'Non COD'
+                    
+                    # Aturan Payment Method: 在线支付/Kosong -> Non COD, COD -> COD
+                    def map_payment(x):
+                        x_str = str(x).strip()
+                        if x_str in ['在线支付', 'nan', 'None', '', 'NaN']:
+                            return 'Non COD'
+                        elif x_str.upper() == 'COD':
+                            return 'COD'
+                        return 'Non COD'
+                        
+                    res['Payment Menthood'] = res_erp_m[col_payment].apply(map_payment) if col_payment else 'Non COD'
                 else:
                     res['Status'] = np.nan; res['total order amount'] = np.nan; res['Payment Menthood'] = 'Non COD'
 
-                res['Status'] = res['Status'].apply(lambda x: 'Other' if pd.isna(x) or str(x).strip() in ['', 'nan', 'None'] else x)
+                # Memastikan Status tidak sembarangan jadi 'Other' jika nilai aslinya ada
+                res['Status'] = res['Status'].apply(lambda x: np.nan if pd.isna(x) or str(x).strip() in ['', 'nan', 'None', 'NaN'] else x)
+
                 res['Attachment'] = df_ho[ho_col_map.get('Attachment', None)].apply(lambda x: str(x).strip() if pd.notna(x) else '') if ho_col_map.get('Attachment', None) else np.nan
                 res['Dokumen'] = np.where(res['Attachment'].replace({0: np.nan, '0': np.nan, '': np.nan}).isna(), 'Not yet Input', 'YES')
 
@@ -492,7 +507,7 @@ with st.container():
 
                 progress_bar.progress(90, text="Processing... (Menyusun laporan akhir & Excel) [90%]")
                 
-                # Susunan kolom akhir dengan urutan AV-BB: System, Admin, Picker, Packer, Outbound, Kurir, Late Proses By
+                # Susunan kolom akhir dengan urutan persis permintaan (System, Admin, Picker, Packer, Outbound, Kurir, Late Proses By)
                 kolom_final = [
                     'WMS Order', 'ERP Document Number', 'Tracking#/PRO#', 'PlatformOrder', 'Staged User', 
                     'Platform', 'Brand', 'Brand 2', 'Admin', 'Load', 'Kurir', 'Loader', 'Tanggal Handover', 
@@ -554,7 +569,7 @@ with st.container():
                         worksheet_wms.write_formula(row_num + 1, 51, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AR{excel_row}), FALSE))")
                         worksheet_wms.write_formula(row_num + 1, 52, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AS{excel_row}), FALSE))")
                         
-                        # Late Proses By membaca True dari AV sampai BA
+                        # Late Proses By membaca true dari AV sampai BA
                         formula_late_by = (
                             f'=IF(AV{excel_row}, "System", '
                             f'IF(AW{excel_row}, "Admin", '
@@ -570,7 +585,7 @@ with st.container():
                         worksheet_wms.set_column(col_num, col_num, 16)
 
                     # ==========================================
-                    # SHEET DB (DASHBOARD SUMMARY) - Disesuaikan Persis Contoh Gambar
+                    # SHEET DB (DASHBOARD SUMMARY) - Tata letak persis gambar referensi
                     # ==========================================
                     worksheet_db = workbook.add_worksheet('DB')
                     header_format_db = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1, 'align': 'center'})
@@ -646,19 +661,14 @@ with st.container():
                             for c_idx, val in enumerate(row):
                                 worksheet_db.write(start_row + r_idx + 1, start_col + c_idx, val, cell_format_left if isinstance(val, str) else cell_format_db)
 
-                    # Urutan Posisi Kolom Tabel DB sesuai referensi gambar:
-                    # Kolom A-D: Metrics
+                    # Posisi Tabel di Sheet DB sesuai gambar referensi
                     write_custom_table(df_metrics, 1, 0)
-                    # Kolom F-I: Brand Delivered & Target
                     write_custom_table(df_brand, 1, 5)
-                    # Kolom L-O: Kurir Total Package & Ranking
                     write_custom_table(df_kurir, 1, 11)
-                    # Kolom R-T: Kurir Manifest Time
                     write_custom_table(df_kurir_manifest, 1, 17)
-                    # Kolom V-X: Status Manifest Qty
                     write_custom_table(df_status, 1, 21)
                     
-                    # Garis Pemisah Hitam Vertikal (Sesuai Gambar Referensi)
+                    # Garis Pemisah Hitam Vertikal
                     worksheet_db.set_column('E:E', 2, black_divider)
                     worksheet_db.set_column('J:J', 2, black_divider)
                     worksheet_db.set_column('P:P', 2, black_divider)
