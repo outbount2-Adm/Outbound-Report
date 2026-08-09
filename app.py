@@ -650,26 +650,85 @@ with st.container():
                     val_delivered = len(final_df)
                     val_delivery_rate = round((val_delivered / val_target * 100), 2) if val_target > 0 else 0.0
 
-                    # Kalkulasi akurat Kurir Instan berdasarkan daftar ekspedisi yang diminta
-                    instan_list = [
-                        'go-jek/grab/shopee instant',
-                        'anteraja sameday (rit 1)', 'anteraja sameday (rit 2)', 'anteraja sameday (rit 3)',
-                        'paxel ( rit 1 )', 'paxel ( rit 2 )', 'paxel ( rit 3 )'
-                    ]
-                    if 'Kurir' in final_df.columns:
-                        kurir_series = final_df['Kurir'].astype(str).str.strip().str.lower()
-                        val_kurir_instan = int(kurir_series.isin(instan_list).sum())
-                    else:
-                        val_kurir_instan = 0
-
+                    # 1. Kalkulasi Akurat Kurir Instan dari file Daily HO (mengabaikan baris Total)
                     raw_daily_df = dfs.get('daily_ho', pd.DataFrame()).copy()
+                    val_kurir_instan = 0
+                    if not raw_daily_df.empty:
+                        cols_lower = [str(c).strip().lower() for c in raw_daily_df.columns]
+                        courier_col_idx = -1
+                        qty_col_idx = -1
+                        
+                        for idx, c_name in enumerate(cols_lower):
+                            if 'ekspedisi' in c_name or 'kurir' in c_name or 'courier' in c_name or 'service' in c_name:
+                                courier_col_idx = idx
+                                break
+                        if courier_col_idx == -1 and len(raw_daily_df.columns) > 0:
+                            courier_col_idx = 0
+                            
+                        for idx, c_name in enumerate(cols_lower):
+                            if 'deliveree' in c_name or 'qty' in c_name or 'total' in c_name or 'order' in c_name:
+                                if idx != courier_col_idx:
+                                    qty_col_idx = idx
+                                    break
+                        if qty_col_idx == -1 and len(raw_daily_df.columns) > 1:
+                            qty_col_idx = 1
+                            
+                        if courier_col_idx != -1 and qty_col_idx != -1:
+                            c_col_name = raw_daily_df.columns[courier_col_idx]
+                            q_col_name = raw_daily_df.columns[qty_col_idx]
+                            
+                            target_kurir = [
+                                'go-jek/grab/shopee instant',
+                                'anteraja sameday (rit 1)', 'anteraja sameday (rit 2)', 'anteraja sameday (rit 3)',
+                                'paxel ( rit 1 )', 'paxel ( rit 2 )', 'paxel ( rit 3 )'
+                            ]
+                            
+                            for _, r in raw_daily_df.iterrows():
+                                c_val = str(r[c_col_name]).strip().lower()
+                                if any(t in c_val for t in ['total', 'jumlah', 'sum']):
+                                    continue
+                                if any(tk == c_val for tk in target_kurir):
+                                    try:
+                                        q_val = float(str(r[q_col_name]).replace(',', '').strip())
+                                        val_kurir_instan += int(q_val)
+                                    except:
+                                        pass
+
+                    # Jika Daily HO kosong, gunakan fallback dari final_df
+                    if val_kurir_instan == 0 and 'Kurir' in final_df.columns:
+                        instan_list = [
+                            'go-jek/grab/shopee instant',
+                            'anteraja sameday (rit 1)', 'anteraja sameday (rit 2)', 'anteraja sameday (rit 3)',
+                            'paxel ( rit 1 )', 'paxel ( rit 2 )', 'paxel ( rit 3 )'
+                        ]
+                        val_kurir_instan = int(final_df['Kurir'].astype(str).str.strip().str.lower().isin(instan_list).sum())
+
+                    # 2, 3, 4. Kalkulasi akurat jc_fulfilment, jc_enabler, dan other berdasarkan Brand 2 dan Platform
+                    brand2_series = final_df['Brand 2'].astype(str).str.strip().str.lower()
+                    platform_series = final_df['Platform'].astype(str).str.strip().str.lower()
+                    
+                    fulfilment_brands = ['dojako', 'firda', 'noura', "mama's choice", 'mamas choice']
+                    
+                    is_fulfilment = brand2_series.isin(fulfilment_brands)
+                    
+                    # Kondisi Other: (Platform Webstore dan Brand 2 Acekid) ATAU (Platform Other dan Brand 2 SK)
+                    is_other = ((platform_series == 'webstore') & (brand2_series == 'acekid')) | \
+                               ((platform_series == 'other') & (brand2_series == 'sk'))
+                               
+                    # jc_enabler adalah sisanya (selain fulfilment dan other)
+                    is_enabler = ~is_fulfilment & ~is_other
+
+                    val_jc_fulfilment = int(is_fulfilment.sum())
+                    val_other = int(is_other.sum())
+                    val_jc_enabler = int(is_enabler.sum())
+
                     val_pending = 0
                     if not raw_daily_df.empty:
                         col0 = raw_daily_df.columns[0]; col1 = raw_daily_df.columns[1] if len(raw_daily_df.columns) > 1 else col0
-                        raw_daily_df = raw_daily_df[~(raw_daily_df[col0].astype(str).str.lower().str.contains('total', na=False) | raw_daily_df[col1].astype(str).str.lower().str.contains('total', na=False))]
-                        col_pending = next((c for c in raw_daily_df.columns if 'cut off' in c.lower() or 'pending' in c.lower()), None)
+                        clean_daily = raw_daily_df[~(raw_daily_df[col0].astype(str).str.lower().str.contains('total', na=False) | raw_daily_df[col1].astype(str).str.lower().str.contains('total', na=False))]
+                        col_pending = next((c for c in clean_daily.columns if 'cut off' in c.lower() or 'pending' in c.lower()), None)
                         if col_pending:
-                            val_pending = int(pd.to_numeric(raw_daily_df[col_pending].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0).sum())
+                            val_pending = int(pd.to_numeric(clean_daily[col_pending].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0).sum())
 
                     val_traceable = int(final_df['Master_Tracking'].eq('traceable').sum())
                     val_untraceable = int(final_df['Master_Tracking'].eq('untraceable').sum())
@@ -681,10 +740,10 @@ with st.container():
                         [4, "pending_order", f"{val_pending:,}", "Jumlah order pending"],
                         [5, "avg_shipped", "0:24:41", "Rata-rata waktu ke shipped"],
                         [6, "avg_handover", "4:20:20", "Rata-rata waktu ke handover"],
-                        [7, "kurir_instan", val_kurir_instan, "Total kurir instan (Go-Jek/Grab/Shopee Instant, AnterAja Sameday, Paxel)"],
-                        [8, "jc_enabler", 13566, "Jet Commerce Enabler"],
-                        [9, "jc_fulfilment", 4369, "Jet Commerce Fulfilment"],
-                        [10, "other", 17, "Kategori lainnya"],
+                        [7, "kurir_instan", val_kurir_instan, "Total kurir instan"],
+                        [8, "jc_enabler", val_jc_enabler, "Jet Commerce Enabler"],
+                        [9, "jc_fulfilment", val_jc_fulfilment, "Jet Commerce Fulfilment"],
+                        [10, "other", val_other, "Kategori lainnya"],
                         [11, "traceable", val_traceable, "Paket yang bisa dilacak"],
                         [12, "untraceable", val_untraceable, "Paket tidak bisa dilacak"],
                     ]
