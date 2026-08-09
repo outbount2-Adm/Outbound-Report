@@ -327,6 +327,7 @@ with st.container():
                 def safe_key(x):
                     if pd.isna(x): return ""
                     s = str(x).strip()
+                    if s.lower() in ['', 'nan', 'none', 'null', '0']: return ""
                     return s[:-2] if s.endswith('.0') else s
 
                 col_store = next((c for c in res.columns if 'store number' in c.lower()), None)
@@ -631,25 +632,31 @@ with st.container():
                     
                     black_divider = workbook.add_format({'bg_color': '#000000'})
                     
-                    # --- PERBAIKAN KOLOM TARGET PADA TABEL BRAND (LOOKUP OPEN ORDER SUMMARY -> MASTER BRAND 2 -> COUNTIF BRAND DB) ---
+                    # --- PERBAIKAN KOLOM TARGET PADA TABEL BRAND (JIKA KOSONG OTOMATIS JADI "SK") ---
                     df_brand = final_df['Brand'].value_counts().reset_index()
                     df_brand.columns = ['Brand', 'Delivered']
                     df_brand.insert(0, 'No', range(1, len(df_brand) + 1))
                     
                     df_os_open = dfs.get('order_summary_open', dfs.get('order_summary', pd.DataFrame()))
-                    if not df_os_open.empty and master_store_db:
+                    if not df_os_open.empty:
                         col_store_os = next((c for c in df_os_open.columns if 'store number' in c.lower() or c.lower() == 'storenumber' or 'store' in c.lower()), None)
                         if col_store_os:
                             os_mapped_brands = []
                             for _, row in df_os_open.iterrows():
                                 sn = safe_key(row[col_store_os])
-                                store_info = master_store_db.get(sn, {})
-                                # Lookup Master: ambil Brand 2 (fallback ke Brand jika kosong)
-                                b_val = store_info.get('Brand2', '')
-                                if not b_val:
-                                    b_val = store_info.get('Brand', '')
-                                if b_val:
-                                    os_mapped_brands.append(b_val)
+                                if sn == "":
+                                    # Jika Store Number kosong, hitung sebagai SK
+                                    os_mapped_brands.append("SK")
+                                else:
+                                    store_info = master_store_db.get(sn, {})
+                                    b_val = store_info.get('Brand2', '')
+                                    if not b_val:
+                                        b_val = store_info.get('Brand', '')
+                                    if b_val:
+                                        os_mapped_brands.append(b_val)
+                                    else:
+                                        # Jika Store Number tidak terdaftar di master, hitung sebagai SK
+                                        os_mapped_brands.append("SK")
                             
                             if os_mapped_brands:
                                 target_counts = pd.Series(os_mapped_brands).value_counts()
