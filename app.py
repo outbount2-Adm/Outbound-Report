@@ -19,7 +19,7 @@ st.set_page_config(
 current_date = datetime.datetime.now().strftime("%B %d, %Y")
 
 # ==========================================
-# 2. CSS KUSTOM DASHBOARD PROFESIONAL (DARI FINAL_FIX)
+# 2. CSS KUSTOM DASHBOARD PROFESIONAL
 # ==========================================
 custom_css = """
 <style>
@@ -914,14 +914,26 @@ if 'processed_result' in st.session_state:
                     chart_df = late_df_web.groupby(['Kurir', 'Late Proses By']).size().reset_index(name='Qty')
                     chart_df = chart_df.sort_values(by='Qty', ascending=False)
                     
+                    # Konfigurasi Grafik Altair dengan warna angka Hitam (black) agar jelas dibaca
                     base = alt.Chart(chart_df).encode(
                         y=alt.Y('Kurir:N', sort='-x', title='Kurir / Ekspedisi'),
-                        x=alt.X('Qty:Q', title='Jumlah Order (Unit)'),
+                        x=alt.X('Qty:Q', stack='zero', title='Jumlah Order (Unit)'),
                         color=alt.Color('Late Proses By:N', scale=alt.Scale(scheme='set2'), legend=alt.Legend(title="Penyebab Keterlambatan", orient="bottom")),
                         tooltip=['Kurir', 'Late Proses By', 'Qty']
                     )
-                    bars = base.mark_bar(cornerRadiusTopRight=6, cornerRadiusBottomRight=6, height=20)
-                    text = base.mark_text(align='left', baseline='middle', dx=5, fontWeight=600, fontSize=12, color='#1E293B').encode(text=alt.Text('Qty:Q', format=','))
+                    bars = base.mark_bar(cornerRadiusTopRight=4, cornerRadiusBottomRight=4, height=22)
+                    
+                    # Warna teks diubah menjadi hitam ('black') untuk kontras dan kejelasan
+                    text = base.mark_text(
+                        align='center',
+                        baseline='middle',
+                        fontWeight='bold',
+                        fontSize=11,
+                        color='black'
+                    ).encode(
+                        x=alt.X('Qty:Q', stack='center'),
+                        text=alt.Text('Qty:Q', format=',')
+                    )
                     
                     chart = (bars + text).properties(height=400)
                     st.altair_chart(chart, use_container_width=True)
