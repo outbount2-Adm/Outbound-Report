@@ -435,7 +435,7 @@ with st.container():
                     res_str = (seconds // 3600).astype(str).str.zfill(2) + ":" + ((seconds % 3600) // 60).astype(str).str.zfill(2) + ":" + (seconds % 60).astype(str).str.zfill(2)
                     return np.where(td_series.isna(), "", np.where(is_neg, "-" + res_str, res_str))
 
-                res['Packing to Shipped Date'] = format_timedelta_hhmmss(to_dt('Shipped Date') - to_dt('Packing Complete'))
+                res['Packing to Shpped Date'] = format_timedelta_hhmmss(to_dt('Shipped Date') - to_dt('Packing Complete'))
                 res['Packing to Handover'] = format_timedelta_hhmmss(to_dt('Handover Date') - to_dt('Packing Complete'))
                 res['Shipped Date to Handover'] = format_timedelta_hhmmss(to_dt('Handover Date') - to_dt('Shipped Date'))
                 res['End Ship Date to Shpped Date'] = format_timedelta_hhmmss(to_dt('End Ship Date') - to_dt('Shipped Date'))
@@ -443,7 +443,7 @@ with st.container():
                 res['Kota'] = res[next((c for c in res.columns if 'ship to city' in c.lower()), None)] if next((c for c in res.columns if 'ship to city' in c.lower()), None) else np.nan
                 res['Provinsi'] = res[next((c for c in res.columns if 'ship to st' in c.lower() or 'prov' in c.lower()), None)] if next((c for c in res.columns if 'ship to st' in c.lower() or 'prov' in c.lower()), None) else np.nan
 
-                # --- PERBAIKAN LOOKUP STATUS & PAYMENT METHOD (Poin 2 & 4) ---
+                # --- LOOKUP STATUS & PAYMENT METHOD ---
                 df_erp = dfs['erp']
                 col_erp_order = next((c for c in df_erp.columns if 'erp order number' in c.lower()), None) if not df_erp.empty else None
                 if col_erp_order and 'ERP Document Number' in res.columns:
@@ -454,10 +454,17 @@ with st.container():
                     
                     res_erp_m = res[['ERP Document Number']].merge(df_erp[[col_erp_order] + ([col_status] if col_status else []) + ([col_payment] if col_payment else []) + ([col_amount] if col_amount else [])], left_on='ERP Document Number', right_on=col_erp_order, how='left')
                     
-                    res['Status'] = res_erp_m[col_status] if col_status else np.nan
+                    raw_status = res_erp_m[col_status] if col_status else pd.Series([np.nan]*len(res))
+                    
+                    def map_status(val):
+                        v_str = str(val).strip()
+                        if pd.isna(val) or v_str in ['', 'nan', 'None', 'NaN']:
+                            return 'Other'
+                        return val
+
+                    res['Status'] = raw_status.apply(map_status)
                     res['total order amount'] = res_erp_m[col_amount] if col_amount else np.nan
                     
-                    # Aturan Payment Method: 在线支付/Kosong -> Non COD, COD -> COD
                     def map_payment(x):
                         x_str = str(x).strip()
                         if x_str in ['在线支付', 'nan', 'None', '', 'NaN']:
@@ -468,10 +475,9 @@ with st.container():
                         
                     res['Payment Menthood'] = res_erp_m[col_payment].apply(map_payment) if col_payment else 'Non COD'
                 else:
-                    res['Status'] = np.nan; res['total order amount'] = np.nan; res['Payment Menthood'] = 'Non COD'
-
-                # Memastikan Status tidak sembarangan jadi 'Other' jika nilai aslinya ada
-                res['Status'] = res['Status'].apply(lambda x: np.nan if pd.isna(x) or str(x).strip() in ['', 'nan', 'None', 'NaN'] else x)
+                    res['Status'] = 'Other'
+                    res['total order amount'] = np.nan
+                    res['Payment Menthood'] = 'Non COD'
 
                 res['Attachment'] = df_ho[ho_col_map.get('Attachment', None)].apply(lambda x: str(x).strip() if pd.notna(x) else '') if ho_col_map.get('Attachment', None) else np.nan
                 res['Dokumen'] = np.where(res['Attachment'].replace({0: np.nan, '0': np.nan, '': np.nan}).isna(), 'Not yet Input', 'YES')
@@ -507,7 +513,9 @@ with st.container():
 
                 progress_bar.progress(90, text="Processing... (Menyusun laporan akhir & Excel) [90%]")
                 
-                # Susunan kolom akhir dengan urutan persis permintaan (System, Admin, Picker, Packer, Outbound, Kurir, Late Proses By)
+                res['Admin '] = res['Admin']
+                res['Kurir '] = res['Kurir']
+
                 kolom_final = [
                     'WMS Order', 'ERP Document Number', 'Tracking#/PRO#', 'PlatformOrder', 'Staged User', 
                     'Platform', 'Brand', 'Brand 2', 'Admin', 'Load', 'Kurir', 'Loader', 'Tanggal Handover', 
@@ -517,8 +525,8 @@ with st.container():
                     'End Ship Date to Shpped Date', 'Kota', 'Provinsi', 'Status', 'Payment Menthood', 
                     'total order amount', 'Dokumen', 'Attachment', 'Times Proses Kurir', 'Times Proses Kurir to Shpped Date', 
                     'Status Manifest', 'Status Late', 'Remark Late', 'Pay-Created', 'Created-Released', 'Released-Pick', 
-                    'Pick-Pack', 'Pack-Collect', 'Collect-Manifest', 'Manifest-Endshipdate', 'Max', 'System', 'Admin', 
-                    'Picker', 'Packer', 'Outbound', 'Kurir', 'Late Proses By'
+                    'Pick-Pack', 'Pack-Collect', 'Collect-Manifest', 'Manifest-Endshipdate', 'Max', 'System', 'Admin ', 
+                    'Picker', 'Packer', 'Outbound', 'Kurir ', 'Late Proses By'
                 ]
                 
                 for col in kolom_final:
@@ -543,6 +551,8 @@ with st.container():
                 output = BytesIO()
                 with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                     df_to_export = final_df.drop(columns=['Master_Tracking'], errors='ignore')
+                    df_to_export.columns = [c.strip() if c in ['Admin ', 'Kurir '] else c for c in df_to_export.columns]
+                    
                     df_to_export.to_excel(writer, index=False, sheet_name='Laporan_WMS')
                     
                     workbook = writer.book
@@ -569,7 +579,6 @@ with st.container():
                         worksheet_wms.write_formula(row_num + 1, 51, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AR{excel_row}), FALSE))")
                         worksheet_wms.write_formula(row_num + 1, 52, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AS{excel_row}), FALSE))")
                         
-                        # Late Proses By membaca true dari AV sampai BA
                         formula_late_by = (
                             f'=IF(AV{excel_row}, "System", '
                             f'IF(AW{excel_row}, "Admin", '
@@ -582,10 +591,12 @@ with st.container():
 
                     for col_num, value in enumerate(df_to_export.columns.values):
                         worksheet_wms.write(0, col_num, value, format_header)
-                        worksheet_wms.set_column(col_num, col_num, 16)
+                        # Set lebar kolom otomatis agar teks/waktu tidak terpotong (Auto-fit)
+                        max_len = max(len(str(value)), 12)
+                        worksheet_wms.set_column(col_num, col_num, max_len + 4)
 
                     # ==========================================
-                    # SHEET DB (DASHBOARD SUMMARY) - Tata letak persis gambar referensi
+                    # SHEET DB (DASHBOARD SUMMARY)
                     # ==========================================
                     worksheet_db = workbook.add_worksheet('DB')
                     header_format_db = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1, 'align': 'center'})
@@ -661,14 +672,12 @@ with st.container():
                             for c_idx, val in enumerate(row):
                                 worksheet_db.write(start_row + r_idx + 1, start_col + c_idx, val, cell_format_left if isinstance(val, str) else cell_format_db)
 
-                    # Posisi Tabel di Sheet DB sesuai gambar referensi
                     write_custom_table(df_metrics, 1, 0)
                     write_custom_table(df_brand, 1, 5)
                     write_custom_table(df_kurir, 1, 11)
                     write_custom_table(df_kurir_manifest, 1, 17)
                     write_custom_table(df_status, 1, 21)
                     
-                    # Garis Pemisah Hitam Vertikal
                     worksheet_db.set_column('E:E', 2, black_divider)
                     worksheet_db.set_column('J:J', 2, black_divider)
                     worksheet_db.set_column('P:P', 2, black_divider)
@@ -687,7 +696,7 @@ with st.container():
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
-# 6. TAMPILAN PREVIEW & NOTIFIKASI (Peringatan Untraceable Dikembalikan)
+# 6. TAMPILAN PREVIEW & NOTIFIKASI
 # ==========================================
 if 'processed_result' in st.session_state:
     res_df = st.session_state['processed_result']
@@ -697,7 +706,7 @@ if 'processed_result' in st.session_state:
         st.markdown('<div class="result-notif result-success">✅ Berhasil memproses data! Laporan siap diunduh.</div>', unsafe_allow_html=True)
 
         if 'Master_Tracking' in res_df.columns:
-            untraceable_data = res_df[res_df['Master_Tracking'] == 'untraceable']
+            untraceable_data = res_df[res_df['Master_Tracking'] == 'untraceable'].copy()
             untraceable_count = len(untraceable_data)
             
             if untraceable_count > 0:
@@ -720,8 +729,25 @@ if 'processed_result' in st.session_state:
                         st.dataframe(untraceable_data[cols_to_show], use_container_width=True, hide_index=True)
             else:
                 st.info("🎉 Seluruh paket berstatus **Traceable** (0 Untraceable).")
+
+        essential_cols = ['WMS Order', 'ERP Document Number', 'Tracking#/PRO#', 'Platform', 'Kurir', 'Status']
+        empty_report = []
+        for col in essential_cols:
+            if col in res_df.columns:
+                missing_count = res_df[col].isna().sum() + (res_df[col].astype(str).str.strip() == '').sum() + (res_df[col].astype(str).str.lower() == 'nan').sum()
+                if missing_count > 0:
+                    empty_report.append(f"Kolom **{col}** kosong sebanyak **{missing_count}** baris.")
+        
+        if empty_report:
+            warning_msg = "<br>".join([f"- {rep}" for rep in empty_report])
+            st.markdown(f"""
+                <div class="result-notif result-warning" style="background-color: #FEF2F2; color: #991B1B; border: 1px solid #FCA5A5;">
+                    🚨 **PERINGATAN KOLOM KOSONG:**<br>{warning_msg}
+                </div>
+            """, unsafe_allow_html=True)
         
         display_df = res_df.drop(columns=['Master_Tracking'], errors='ignore')
+        display_df.columns = [c.strip() if c in ['Admin ', 'Kurir '] else c for c in display_df.columns]
         st.dataframe(display_df, use_container_width=True, hide_index=True)
 
         col_down1, col_down2, col_down3 = st.columns([1, 2, 1])
