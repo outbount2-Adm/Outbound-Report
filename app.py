@@ -313,7 +313,7 @@ with st.container():
                 track_empty = res['Tracking#/PRO#'].isna() | (res['Tracking#/PRO#'].astype(str).str.strip() == '') | (res['Tracking#/PRO#'].astype(str).str.strip().str.lower() == 'nan')
                 res['Tracking#/PRO#'] = np.where(track_empty & is_platform_other, res['WMS Order'], res['Tracking#/PRO#'])
 
-                platord_empty = res['PlatformOrder'].isna() | (res['PlatformOrder'].astype(str).str.strip() == '') | (res['PlatformOrder'].astype(str).str.lower() == 'nan')
+                platord_empty = res['PlatformOrder'].isna() | (res['PlatformOrder'].astype(str).str.strip() == '') | (res['PlatformOrder'].astype(str).str.strip().str.lower() == 'nan')
                 res['PlatformOrder'] = np.where(platord_empty & is_platform_other, res['WMS Order'], res['PlatformOrder'])
 
                 df_op = dfs['op_log']
@@ -908,7 +908,6 @@ if 'processed_result' in st.session_state:
             late_df_web = res_df[res_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late'].copy()
             
             if not late_df_web.empty:
-                # Tabel Statistik dengan urutan kolom: System, Admin, Picker, Packer, Outbound, Kurir
                 stat_df = pd.pivot_table(
                     late_df_web,
                     index='Kurir',
@@ -920,7 +919,6 @@ if 'processed_result' in st.session_state:
                 
                 stat_df.columns.name = None
                 
-                # Urutan Kolom Sesuai Permintaan: System, Admin, Picker, Packer, Outbound, Kurir
                 expected_cols = ['System', 'Admin', 'Picker', 'Packer', 'Outbound', 'Kurir']
                 for col in expected_cols:
                     if col not in stat_df.columns:
@@ -934,19 +932,26 @@ if 'processed_result' in st.session_state:
                 
                 stat_df['Total Late'] = stat_df.sum(axis=1)
                 
+                # Urutkan row dari terbanyak ke terdikit berdasarkan Total Late
+                stat_df = stat_df.sort_values(by='Total Late', ascending=False).reset_index()
+                
                 if 'index' in stat_df.columns:
-                    stat_df = stat_df.drop(columns=['index'])
-                
-                if 'Kurir' not in stat_df.columns:
-                    stat_df = stat_df.reset_index()
-                
-                if 'index' in stat_df.columns and 'Kurir' in stat_df.columns:
                     stat_df = stat_df.drop(columns=['index'], errors='ignore')
 
-                stat_df = stat_df.sort_values(by='Total Late', ascending=False).reset_index(drop=True)
+                # Buat Tabel Persentase (%) Berdasarkan Total Late per Kurir
+                stat_pct_df = stat_df.copy()
+                total_col = stat_pct_df['Total Late'].replace(0, 1)
+                for col in expected_cols:
+                    stat_pct_df[col] = (stat_pct_df[col] / total_col * 100).round(2).astype(str) + '%'
                 
-                st.markdown("**Tabel Statistik Keterlambatan (Kurir vs Penyebab Keterlambatan):**")
+                # Hitung persentase Total Late relatif terhadap keseluruhan total late jika diperlukan, atau biarkan Total Late sebagai angka
+                
+                st.markdown("**1. Tabel Statistik Keterlambatan (Jumlah Unit - Terbanyak ke Terdikit):**")
                 st.dataframe(stat_df, use_container_width=True, hide_index=True)
+                
+                st.markdown("---")
+                st.markdown("**2. Tabel Statistik Persentase (%) Keterlambatan per Kategori:**")
+                st.dataframe(stat_pct_df, use_container_width=True, hide_index=True)
             else:
                 st.info("ℹ️ Tidak ada data dengan status manifest 'Late'.")
         else:
