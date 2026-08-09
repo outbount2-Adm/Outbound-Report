@@ -10,7 +10,7 @@ from io import BytesIO
 # 1. KONFIGURASI HALAMAN 
 # ==========================================
 st.set_page_config(
-    page_title="Outbound Logistic Dashboard",  # <--- PERBAIKAN TITLE APLIKASI
+    page_title="Outbound Logistic Dashboard", 
     layout="wide", 
     page_icon="📦", 
     initial_sidebar_state="expanded"
@@ -19,7 +19,7 @@ st.set_page_config(
 current_date_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 # ==========================================
-# 2. CSS KUSTOM (Design System + Modern Cards)
+# 2. CSS KUSTOM (Perbaikan Tampilan Sidebar & Input Officer)
 # ==========================================
 custom_css = """
 <style>
@@ -38,9 +38,21 @@ custom_css = """
         background-color: #001529 !important;
         color: white !important;
     }
-    [data-testid="stSidebar"] * {
+    
+    /* Perbaikan agar teks navigasi sidebar terlihat jelas */
+    [data-testid="stSidebar"] .sidebar-item {
         color: #A6ADB4 !important;
+        padding: 10px;
+        margin-bottom: 5px;
+        cursor: pointer;
     }
+    
+    /* Memastikan Label Widget di Sidebar (Termasuk Input Officer) Terlihat Jelas */
+    [data-testid="stSidebar"] label {
+        color: #FFFFFF !important;
+        font-weight: 500;
+    }
+
     .sidebar-active {
         background-color: #1890FF !important;
         color: white !important;
@@ -48,11 +60,6 @@ custom_css = """
         padding: 10px;
         margin-bottom: 5px;
         font-weight: 600;
-    }
-    .sidebar-item {
-        padding: 10px;
-        margin-bottom: 5px;
-        cursor: pointer;
     }
 
     /* Top Bar / Header */
@@ -115,6 +122,8 @@ custom_css = """
     [data-testid="stTextInput"] > div > div > input {
         border-radius: 6px;
         border: 1px solid #D9D9D9;
+        background-color: #FFFFFF;
+        color: #000000;
     }
     div[data-testid="stButton"] > button {
         border-radius: 6px !important;
@@ -860,13 +869,13 @@ with st.container():
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
-# 6. TAMPILAN DASHBOARD QIANYI & PREVIEW
+# 6. TAMPILAN DASHBOARD & PREVIEW
 # ==========================================
 if 'processed_result' in st.session_state:
     res_df = st.session_state['processed_result']
     m = st.session_state.get('metrics', {})
     
-    # --- TODO / METRIC CARDS (QianYi Style) ---
+    # --- TODO / METRIC CARDS ---
     if m:
         st.markdown('<div class="section-container">', unsafe_allow_html=True)
         st.markdown('<div class="section-title">📌 Todo / Key Metrics Overview</div>', unsafe_allow_html=True)
@@ -912,33 +921,25 @@ if 'processed_result' in st.session_state:
             late_df_web = res_df[res_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late'].copy()
             
             if not late_df_web.empty:
-                # 1. Hitung total Qty per segment
                 chart_df = late_df_web.groupby(['Kurir', 'Late Proses By']).size().reset_index(name='Qty')
                 chart_df = chart_df[chart_df['Qty'] > 0]
-                
-                # 2. Urutkan berdasarkan Kurir dan Alphabet Penyebab
                 chart_df = chart_df.sort_values(by=['Kurir', 'Late Proses By'])
                 
-                # 3. Kalkulasi Kumulatif & Midpoint (titik tengah X) di Pandas 
                 chart_df['Qty_cumu'] = chart_df.groupby('Kurir')['Qty'].cumsum()
                 chart_df['Qty_mid'] = chart_df['Qty_cumu'] - (chart_df['Qty'] / 2)
                 
-                # Pengaturan urutan batang utama
                 sort_order = alt.EncodingSortField(field='Qty', op='sum', order='descending')
                 
-                # Layer dasar untuk sumbu Y
                 base = alt.Chart(chart_df).encode(
                     y=alt.Y('Kurir:N', sort=sort_order, title='Kurir / Ekspedisi', axis=alt.Axis(labelLimit=200, titleFontWeight=600))
                 )
                 
-                # Layer Batang warna bertumpuk tanpa sumbu X (axis=None) <-- PERBAIKAN DI SINI
                 bars = base.mark_bar(height=28, opacity=0.9).encode(
-                    x=alt.X('Qty:Q', stack='zero', axis=None), # Axis dihilangkan
+                    x=alt.X('Qty:Q', stack='zero', axis=None),
                     color=alt.Color('Late Proses By:N', scale=alt.Scale(scheme='tableau10'), legend=alt.Legend(title="Penyebab Keterlambatan", orient="bottom", titleFontWeight=600)),
                     tooltip=['Kurir:N', 'Late Proses By:N', 'Qty:Q']
                 )
                 
-                # Layer Teks Hitam & Bold tanpa sumbu X (axis=None) <-- PERBAIKAN DI SINI
                 text = base.mark_text(
                     align='center', 
                     baseline='middle', 
@@ -946,7 +947,7 @@ if 'processed_result' in st.session_state:
                     fontSize=12, 
                     color='black'
                 ).encode(
-                    x=alt.X('Qty_mid:Q', axis=None), # Axis dihilangkan
+                    x=alt.X('Qty_mid:Q', axis=None),
                     text=alt.Text('Qty:Q', format=',')
                 )
                 
