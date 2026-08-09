@@ -913,33 +913,36 @@ if 'processed_result' in st.session_state:
             
             if not late_df_web.empty:
                 chart_df = late_df_web.groupby(['Kurir', 'Late Proses By']).size().reset_index(name='Qty')
-                chart_df = chart_df.sort_values(by='Qty', ascending=False)
                 
-                # Base chart untuk Bar (batang grafik dengan stacking dari nol)
+                # Memastikan tidak ada qty 0 yang merusak stacking bar
+                chart_df = chart_df[chart_df['Qty'] > 0]
+                
+                # Mengurutkan y-axis secara eksplisit berdasarkan total qty agar konsisten
+                sort_order = alt.EncodingSortField(field='Qty', op='sum', order='descending')
+                
+                # Base Chart
                 base = alt.Chart(chart_df).encode(
-                    y=alt.Y('Kurir:N', sort='-x', title='Kurir / Ekspedisi', axis=alt.Axis(labelLimit=200, titleFontWeight=600)),
-                    x=alt.X('Qty:Q', stack='zero', title='Jumlah Order Terlambat (Unit)', axis=alt.Axis(grid=True, gridColor='#F1F5F9', domainColor='#E2E8F0')),
-                    color=alt.Color('Late Proses By:N', scale=alt.Scale(scheme='tableau10'), legend=alt.Legend(title="Penyebab Keterlambatan", orient="bottom", titleFontWeight=600)),
-                    tooltip=[
-                        alt.Tooltip('Kurir:N', title='Kurir'),
-                        alt.Tooltip('Late Proses By:N', title='Penyebab'),
-                        alt.Tooltip('Qty:Q', title='Jumlah (Unit)', format=',')
-                    ]
+                    y=alt.Y('Kurir:N', sort=sort_order, title='Kurir / Ekspedisi', axis=alt.Axis(labelLimit=200, titleFontWeight=600))
                 )
                 
-                bars = base.mark_bar(cornerRadiusTopRight=6, cornerRadiusBottomRight=6, height=24, opacity=0.9)
+                # Layer Bars
+                bars = base.mark_bar(height=28, opacity=0.9).encode(
+                    x=alt.X('Qty:Q', stack='zero', title='Jumlah Order Terlambat (Unit)', axis=alt.Axis(grid=True, gridColor='#F1F5F9')),
+                    color=alt.Color('Late Proses By:N', scale=alt.Scale(scheme='tableau10'), legend=alt.Legend(title="Penyebab Keterlambatan", orient="bottom", titleFontWeight=600)),
+                    tooltip=['Kurir:N', 'Late Proses By:N', 'Qty:Q']
+                )
                 
-                # Text layer terpisah dengan stack='center' agar angka pas di tengah segmen warna dan berwarna HITAM TEBAL
-                text = alt.Chart(chart_df).encode(
-                    y=alt.Y('Kurir:N', sort='-x'),
-                    x=alt.X('Qty:Q', stack='center'),
-                    text=alt.Text('Qty:Q', format=',')
-                ).mark_text(
-                    align='center',
-                    baseline='middle',
-                    fontWeight='bold',
-                    fontSize=11,
+                # Layer Text (Kunci perbaikan: tambahkan 'detail' agar susunan teks dan warna selaras)
+                text = base.mark_text(
+                    align='center', 
+                    baseline='middle', 
+                    fontWeight='bold', 
+                    fontSize=12, 
                     color='black'
+                ).encode(
+                    x=alt.X('Qty:Q', stack='center'),
+                    detail='Late Proses By:N',  # <--- INI ADALAH KUNCI AGAR BAR TIDAK HILANG
+                    text=alt.Text('Qty:Q', format=',')
                 )
                 
                 chart = (bars + text).properties(height=420, padding={'left': 10, 'right': 10, 'top': 10, 'bottom': 10}).interactive()
