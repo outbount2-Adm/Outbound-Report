@@ -939,17 +939,21 @@ if 'processed_result' in st.session_state:
                 stat_df['Total Late'] = stat_df[expected_cols].sum(axis=1)
                 stat_df = stat_df.sort_values(by='Total Late', ascending=False).reset_index(drop=True)
 
-                st.markdown("**Tabel Statistik Keterlambatan:**")
-                stat_df_display = stat_df.copy()
-                stat_df_display.columns.name = None
-                st.dataframe(stat_df_display, use_container_width=True, hide_index=True)
+                # Radio button untuk memilih tampilan (Tabel Statistik Keterlambatan atau Statistik Persentase (%))
+                view_mode = st.radio(
+                    "Pilih Tampilan Statistik",
+                    ["Tabel Statistik Keterlambatan", "Statistik Persentase (%)"],
+                    horizontal=True,
+                    label_visibility="collapsed"
+                )
                 
                 st.markdown("---")
-                
-                # Toggle Show / Hide untuk Statistik Persentase (%)
-                show_percentage = st.toggle("Show Statistik Persentase (%)", value=True)
-                if show_percentage:
-                    st.markdown("**Statistik Persentase (%)**")
+
+                if view_mode == "Tabel Statistik Keterlambatan":
+                    stat_df_display = stat_df.copy()
+                    stat_df_display.columns.name = None
+                    st.dataframe(stat_df_display, use_container_width=True, hide_index=True)
+                else:
                     total_all_late = stat_df['Total Late'].sum()
                     if total_all_late > 0:
                         for _, row in stat_df.iterrows():
