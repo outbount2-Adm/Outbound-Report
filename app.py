@@ -222,7 +222,7 @@ with st.container():
         )
 
     # ==========================================
-    # 5. LOGIKA UTAMA PEMPROSESAN DATA (Exact logic from app last update)
+    # 5. LOGIKA UTAMA PEMPROSESAN DATA
     # ==========================================
     if execute_clicked:
         if uploaded_files:
@@ -958,10 +958,10 @@ if 'processed_result' in st.session_state:
                 chart_df = late_df_web.groupby(['Kurir', 'Late Proses By']).size().reset_index(name='Qty')
                 chart_df = chart_df.sort_values(by='Qty', ascending=False)
                 
-                # Desain grafik modern dengan grid halus, rounded corners, dan tooltip informatif
+                # Perbaikan konfigurasi base chart dengan skala sumbu X normal (mulai dari 0) dan tanpa konflik teks
                 base = alt.Chart(chart_df).encode(
                     y=alt.Y('Kurir:N', sort='-x', title='Kurir / Ekspedisi', axis=alt.Axis(labelLimit=200, titleFontWeight=600)),
-                    x=alt.X('Qty:Q', stack='zero', title='Jumlah Order Terlambat (Unit)', axis=alt.Axis(grid=True, gridColor='#F1F5F9', domainColor='#E2E8F0')),
+                    x=alt.X('Qty:Q', stack='zero', title='Jumlah Order Terlambat (Unit)', scale=alt.Scale(zero=True), axis=alt.Axis(grid=True, gridColor='#F1F5F9', domainColor='#E2E8F0')),
                     color=alt.Color('Late Proses By:N', scale=alt.Scale(scheme='tableau10'), legend=alt.Legend(title="Penyebab Keterlambatan", orient="bottom", titleFontWeight=600)),
                     tooltip=[
                         alt.Tooltip('Kurir:N', title='Kurir'),
@@ -971,7 +971,7 @@ if 'processed_result' in st.session_state:
                 )
                 bars = base.mark_bar(cornerRadiusTopRight=6, cornerRadiusBottomRight=6, height=24, opacity=0.9)
                 
-                # Teks nilai di dalam batang grafik dengan kontras tinggi
+                # Teks nilai di dalam batang grafik dengan posisi stack yang benar
                 text = base.mark_text(
                     align='center',
                     baseline='middle',
@@ -979,7 +979,6 @@ if 'processed_result' in st.session_state:
                     fontSize=11,
                     color='white'
                 ).encode(
-                    x=alt.X('Qty:Q', stack='center'),
                     text=alt.Text('Qty:Q', format=',')
                 )
                 
