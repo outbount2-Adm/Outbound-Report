@@ -591,7 +591,6 @@ with st.container():
 
                     for col_num, value in enumerate(df_to_export.columns.values):
                         worksheet_wms.write(0, col_num, value, format_header)
-                        # Set lebar kolom otomatis agar teks/waktu tidak terpotong (Auto-fit)
                         max_len = max(len(str(value)), 12)
                         worksheet_wms.set_column(col_num, col_num, max_len + 4)
 
@@ -747,7 +746,7 @@ if 'processed_result' in st.session_state:
             """, unsafe_allow_html=True)
         
         display_df = res_df.drop(columns=['Master_Tracking'], errors='ignore')
-        display_df.columns = [c.strip() if c in ['Admin ', 'Kurir '] else c for c in display_df.columns]
+        # DIBIARKAN menggunakan spasi tambahan ('Admin ', 'Kurir ') agar PyArrow tidak error
         st.dataframe(display_df, use_container_width=True, hide_index=True)
 
         col_down1, col_down2, col_down3 = st.columns([1, 2, 1])
