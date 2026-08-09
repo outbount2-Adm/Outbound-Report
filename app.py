@@ -111,6 +111,20 @@ custom_css = """
     .todo-label { font-size: 13px; font-weight: 500; opacity: 0.95; line-height: 1.3; }
     .todo-value { font-size: 22px; font-weight: 700; margin-top: 8px; }
 
+    /* Stats Row Styling */
+    .stats-row {
+        display: flex;
+        justify-content: space-around;
+        text-align: center;
+        padding: 10px 0;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    .stat-item { flex: 1; min-width: 120px; border-right: 1px solid #F0F0F0; }
+    .stat-item:last-child { border-right: none; }
+    .stat-label { color: #8C8C8C; font-size: 13px; margin-bottom: 6px; font-weight: 500; }
+    .stat-value { color: #1890FF; font-size: 20px; font-weight: 700; }
+
     /* Form Inputs & Buttons */
     [data-testid="stTextInput"] > div > div > input {
         border-radius: 6px;
@@ -208,7 +222,7 @@ with st.container():
         )
 
     # ==========================================
-    # 5. LOGIKA UTAMA PEMPROSESAN DATA
+    # 5. LOGIKA UTAMA PEMPROSESAN DATA (Exact logic from app last update)
     # ==========================================
     if execute_clicked:
         if uploaded_files:
@@ -860,7 +874,7 @@ with st.container():
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
-# 6. TAMPILAN DASHBOARD QIANYI & PREVIEW
+# 6. TAMPILAN DASHBOARD QIANYI (Todo & Stats Rows) & PREVIEW
 # ==========================================
 if 'processed_result' in st.session_state:
     res_df = st.session_state['processed_result']
@@ -900,55 +914,81 @@ if 'processed_result' in st.session_state:
         """, unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- TABS: ANALYTICS KURIR / TREND, UNTRACEABLE CHECK, DATA PREVIEW ---
+        # --- OUTBOUND STATS ROW ---
+        st.markdown('<div class="section-container">', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">📤 Outbound Performance Summary</div>', unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class="stats-row">
+            <div class="stat-item">
+                <div class="stat-label">Total Delivered</div>
+                <div class="stat-value">{m.get('Delivered', 0)}</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Target Order</div>
+                <div class="stat-value">{m.get('Target', 0)}</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Delivery Rate</div>
+                <div class="stat-value">{m.get('Delivery Rate', '0%')}</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Pending Order</div>
+                <div class="stat-value">{m.get('Pending', 0)}</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Total Late</div>
+                <div class="stat-value" style="color: #EF4444;">{m.get('Total Late', 0)}</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # --- TABS: ANALYTICS KURIR, UNTRACEABLE CHECK, DATA PREVIEW ---
     st.markdown('<div class="section-container">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">📊 Analisis & Data Preview</div>', unsafe_allow_html=True)
     
-    tab1, tab2, tab3 = st.tabs(["📈 Trend & Analytics", "🔍 Untraceable Check", "📋 Data Preview"])
+    tab1, tab2, tab3 = st.tabs(["📈 Analytics Kurir", "🔍 Untraceable Check", "📋 Data Preview"])
     
     with tab1:
-        st.markdown("### Grafik Tren Volume Order per Tanggal")
-        if 'Tanggal Handover' in res_df.columns:
-            trend_df = res_df.copy()
-            trend_df['Parsed_Date'] = pd.to_datetime(trend_df['Tanggal Handover'], errors='coerce')
-            trend_df = trend_df.dropna(subset=['Parsed_Date'])
+        st.markdown("### Analisis Keterlambatan per Kurir (Status Manifest Late)")
+        if 'Status Manifest' in res_df.columns and 'Late Proses By' in res_df.columns and 'Kurir' in res_df.columns:
+            late_df_web = res_df[res_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late'].copy()
             
-            if not trend_df.empty:
-                chart_trend = trend_df.groupby(trend_df['Parsed_Date'].dt.date).size().reset_index(name='Qty')
-                chart_trend = chart_trend.sort_values('Parsed_Date')
-                chart_trend['Formatted_Date'] = pd.to_datetime(chart_trend['Parsed_Date']).dt.strftime('%m.%d')
+            if not late_df_web.empty:
+                chart_df = late_df_web.groupby(['Kurir', 'Late Proses By']).size().reset_index(name='Qty')
+                chart_df = chart_df.sort_values(by='Qty', ascending=False)
                 
-                # Cek apakah data lebih dari 1 hari agar grafik garis/area dapat ditarik dengan benar
-                if len(chart_trend) > 1:
-                    base = alt.Chart(chart_trend).encode(
-                        x=alt.X('Formatted_Date:N', title='', sort=None, axis=alt.Axis(labelAngle=0, tickColor='#E2E8F0', domainColor='#E2E8F0')),
-                        y=alt.Y('Qty:Q', title='', scale=alt.Scale(zero=True), axis=alt.Axis(grid=True, gridColor='#F1F5F9', domainColor='transparent'))
-                    )
-                    
-                    area = base.mark_area(
-                        line={'color': '#2563EB', 'strokeWidth': 2.5},
-                        color='#2563EB',
-                        opacity=0.3,
-                        interpolate='monotone'
-                    )
-                    
-                    points = base.mark_point(
-                        filled=True,
-                        fill='white',
-                        color='#2563EB',
-                        size=80,
-                        strokeWidth=2.5
-                    )
-                    
-                    chart = (area + points).properties(height=380).interactive()
-                    st.altair_chart(chart, use_container_width=True)
-                else:
-                    st.info("ℹ️ Data tanggal handover yang diunggah saat ini hanya mencakup **1 hari**. Grafik tren garis membutuhkan data dari minimal 2 tanggal yang berbeda. Berikut ringkasan data tanggal tersebut:")
-                    st.dataframe(chart_trend[['Formatted_Date', 'Qty']].rename(columns={'Formatted_Date': 'Tanggal', 'Qty': 'Jumlah Order'}), use_container_width=True, hide_index=True)
+                # Desain grafik modern dengan grid halus, rounded corners, dan tooltip informatif
+                base = alt.Chart(chart_df).encode(
+                    y=alt.Y('Kurir:N', sort='-x', title='Kurir / Ekspedisi', axis=alt.Axis(labelLimit=200, titleFontWeight=600)),
+                    x=alt.X('Qty:Q', stack='zero', title='Jumlah Order Terlambat (Unit)', axis=alt.Axis(grid=True, gridColor='#F1F5F9', domainColor='#E2E8F0')),
+                    color=alt.Color('Late Proses By:N', scale=alt.Scale(scheme='tableau10'), legend=alt.Legend(title="Penyebab Keterlambatan", orient="bottom", titleFontWeight=600)),
+                    tooltip=[
+                        alt.Tooltip('Kurir:N', title='Kurir'),
+                        alt.Tooltip('Late Proses By:N', title='Penyebab'),
+                        alt.Tooltip('Qty:Q', title='Jumlah (Unit)', format=',')
+                    ]
+                )
+                bars = base.mark_bar(cornerRadiusTopRight=6, cornerRadiusBottomRight=6, height=24, opacity=0.9)
+                
+                # Teks nilai di dalam batang grafik dengan kontras tinggi
+                text = base.mark_text(
+                    align='center',
+                    baseline='middle',
+                    fontWeight='bold',
+                    fontSize=11,
+                    color='white'
+                ).encode(
+                    x=alt.X('Qty:Q', stack='center'),
+                    text=alt.Text('Qty:Q', format=',')
+                )
+                
+                chart = (bars + text).properties(height=420, padding={'left': 10, 'right': 10, 'top': 10, 'bottom': 10}).interactive()
+                st.altair_chart(chart, use_container_width=True)
             else:
-                st.info("ℹ️ Belum ada data tanggal handover yang valid untuk ditampilkan pada grafik tren.")
+                st.info("ℹ️ Tidak ada data dengan status manifest 'Late'.")
         else:
-            st.info("ℹ️ Kolom Tanggal Handover tidak ditemukan.")
+            st.info("ℹ️ Kolom yang diperlukan untuk grafik tidak ditemukan.")
 
     with tab2:
         if 'Master_Tracking' in res_df.columns:
