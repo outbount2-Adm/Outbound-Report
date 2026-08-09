@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import traceback
 import datetime
-import altair as alt
 from io import BytesIO
 
 # ==========================================
@@ -138,7 +137,6 @@ custom_css = """
     [data-testid="stDecoration"] { visibility: hidden !important; display: none !important; }
     [data-testid="stStatusWidget"] { visibility: hidden !important; display: none !important; }
     
-    /* Sembunyikan badge pojok kanan bawah Streamlit */
     div[class*="viewerBadge"] {
         display: none !important;
         visibility: hidden !important;
@@ -309,13 +307,13 @@ with st.container():
                 res['Platform'] = np.where(res['Platform'].astype(str).str.strip().str.lower() == 'independent', 'Other', res['Platform'])
 
                 is_platform_other = res['Platform'].astype(str).str.strip() == 'Other'
-                erp_empty = res['ERP Document Number'].isna() | (res['ERP Document Number'].astype(str).str.strip() == '') | (res['ERP Document Number'].astype(str).str.lower() == 'nan')
+                erp_empty = res['ERP Document Number'].isna() | (res['ERP Document Number'].astype(str).str.strip() == '') | (res['ERP Document Number'].astype(str).str.strip().str.lower() == 'nan')
                 res['ERP Document Number'] = np.where(erp_empty & is_platform_other, res['WMS Order'], res['ERP Document Number'])
 
                 track_empty = res['Tracking#/PRO#'].isna() | (res['Tracking#/PRO#'].astype(str).str.strip() == '') | (res['Tracking#/PRO#'].astype(str).str.strip().str.lower() == 'nan')
                 res['Tracking#/PRO#'] = np.where(track_empty & is_platform_other, res['WMS Order'], res['Tracking#/PRO#'])
 
-                platord_empty = res['PlatformOrder'].isna() | (res['PlatformOrder'].astype(str).str.strip() == '') | (res['PlatformOrder'].astype(str).str.strip().str.lower() == 'nan')
+                platord_empty = res['PlatformOrder'].isna() | (res['PlatformOrder'].astype(str).str.strip() == '') | (res['PlatformOrder'].astype(str).str.lower() == 'nan')
                 res['PlatformOrder'] = np.where(platord_empty & is_platform_other, res['WMS Order'], res['PlatformOrder'])
 
                 df_op = dfs['op_log']
@@ -910,37 +908,7 @@ if 'processed_result' in st.session_state:
             late_df_web = res_df[res_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late'].copy()
             
             if not late_df_web.empty:
-                # 1. CHART (Tanpa Axis, Label di tengah block chart warna, warna hitam & bold)
-                chart_df = late_df_web.groupby(['Kurir', 'Late Proses By']).size().reset_index(name='Qty')
-                chart_df = chart_df[chart_df['Qty'] > 0]
-                chart_df = chart_df.sort_values(by=['Kurir', 'Late Proses By'])
-                
-                base = alt.Chart(chart_df).encode(
-                    y=alt.Y('Kurir:N', sort='-x', axis=None, title=None),
-                    x=alt.X('Qty:Q', stack='zero', axis=None, title=None),
-                    color=alt.Color('Late Proses By:N', scale=alt.Scale(scheme='tableau10'), legend=alt.Legend(title="Penyebab Keterlambatan", orient="bottom", titleFontWeight=600)),
-                    tooltip=['Kurir:N', 'Late Proses By:N', 'Qty:Q']
-                )
-                
-                bars = base.mark_bar(height=28, opacity=0.9)
-                
-                text = base.mark_text(
-                    align='center', 
-                    baseline='middle', 
-                    fontWeight='bold', 
-                    fontSize=12, 
-                    color='black'
-                ).encode(
-                    x=alt.X('Qty:Q', stack='center', axis=None),
-                    text=alt.Text('Qty:Q', format=',')
-                )
-                
-                chart = (bars + text).properties(height=420, padding={'left': 10, 'right': 10, 'top': 10, 'bottom': 10}).interactive()
-                st.altair_chart(chart, use_container_width=True)
-
-                st.markdown("---")
-
-                # 2. TABEL STATISTIK / CROSS-TABULATION
+                # Tabel Statistik dengan urutan kolom: System, Admin, Picker, Packer, Outbound, Kurir
                 stat_df = pd.pivot_table(
                     late_df_web,
                     index='Kurir',
@@ -952,7 +920,8 @@ if 'processed_result' in st.session_state:
                 
                 stat_df.columns.name = None
                 
-                expected_cols = ['Admin', 'Outbound', 'Packer', 'Picker', 'System', 'Kurir']
+                # Urutan Kolom Sesuai Permintaan: System, Admin, Picker, Packer, Outbound, Kurir
+                expected_cols = ['System', 'Admin', 'Picker', 'Packer', 'Outbound', 'Kurir']
                 for col in expected_cols:
                     if col not in stat_df.columns:
                         stat_df[col] = 0
@@ -968,7 +937,6 @@ if 'processed_result' in st.session_state:
                 if 'index' in stat_df.columns:
                     stat_df = stat_df.drop(columns=['index'])
                 
-                # Aman dari error cannot insert Kurir, already exists
                 if 'Kurir' not in stat_df.columns:
                     stat_df = stat_df.reset_index()
                 
