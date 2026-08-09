@@ -313,7 +313,7 @@ with st.container():
                 track_empty = res['Tracking#/PRO#'].isna() | (res['Tracking#/PRO#'].astype(str).str.strip() == '') | (res['Tracking#/PRO#'].astype(str).str.strip().str.lower() == 'nan')
                 res['Tracking#/PRO#'] = np.where(track_empty & is_platform_other, res['WMS Order'], res['Tracking#/PRO#'])
 
-                platord_empty = res['PlatformOrder'].isna() | (res['PlatformOrder'].astype(str).str.strip() == '') | (res['PlatformOrder'].astype(str).str.strip().str.lower() == 'nan')
+                platord_empty = res['PlatformOrder'].isna() | (res['PlatformOrder'].astype(str).str.strip() == '') | (res['PlatformOrder'].astype(str).str.lower() == 'nan')
                 res['PlatformOrder'] = np.where(platord_empty & is_platform_other, res['WMS Order'], res['PlatformOrder'])
 
                 df_op = dfs['op_log']
@@ -908,8 +908,12 @@ if 'processed_result' in st.session_state:
             late_df_web = res_df[res_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late'].copy()
             
             if not late_df_web.empty:
+                # Ganti sementara nama nilai 'Kurir' pada Late Proses By agar tidak bentrok dengan kolom index Kurir
+                pivot_temp = late_df_web.copy()
+                pivot_temp['Late Proses By'] = pivot_temp['Late Proses By'].replace({'Kurir': 'Kurir (Penyebab)'})
+                
                 stat_df = pd.pivot_table(
-                    late_df_web,
+                    pivot_temp,
                     index='Kurir',
                     columns='Late Proses By',
                     values='WMS Order',
@@ -918,25 +922,27 @@ if 'processed_result' in st.session_state:
                 )
                 
                 stat_df.columns.name = None
+                stat_df = stat_df.reset_index()
+                
+                # Ubah kembali nama kolom agar sesuai
+                stat_df = stat_df.rename(columns={'Kurir': 'Nama Kurir', 'Kurir (Penyebab)': 'Kurir'})
                 
                 expected_cols = ['System', 'Admin', 'Picker', 'Packer', 'Outbound', 'Kurir']
                 for col in expected_cols:
                     if col not in stat_df.columns:
                         stat_df[col] = 0
                 
-                other_cols = [c for c in stat_df.columns if c not in expected_cols]
-                stat_df = stat_df[expected_cols + other_cols]
+                base_cols = ['Nama Kurir'] + expected_cols
+                other_cols = [c for c in stat_df.columns if c not in base_cols and c != 'Total Late']
+                stat_df = stat_df[base_cols + other_cols]
                 
                 if '' in stat_df.columns:
                     stat_df = stat_df.drop(columns=[''])
                 
-                stat_df['Total Late'] = stat_df.sum(axis=1)
+                stat_df['Total Late'] = stat_df[expected_cols].sum(axis=1)
                 
                 # Urutkan row dari terbanyak ke terdikit berdasarkan Total Late
-                stat_df = stat_df.sort_values(by='Total Late', ascending=False).reset_index()
-                
-                if 'index' in stat_df.columns:
-                    stat_df = stat_df.drop(columns=['index'], errors='ignore')
+                stat_df = stat_df.sort_values(by='Total Late', ascending=False).reset_index(drop=True)
 
                 # Buat Tabel Persentase (%) Berdasarkan Total Late per Kurir
                 stat_pct_df = stat_df.copy()
@@ -944,9 +950,8 @@ if 'processed_result' in st.session_state:
                 for col in expected_cols:
                     stat_pct_df[col] = (stat_pct_df[col] / total_col * 100).round(2).astype(str) + '%'
                 
-                # Hitung persentase Total Late relatif terhadap keseluruhan total late jika diperlukan, atau biarkan Total Late sebagai angka
-                
                 st.markdown("**1. Tabel Statistik Keterlambatan (Jumlah Unit - Terbanyak ke Terdikit):**")
+                stat_df.columns.name = None
                 st.dataframe(stat_df, use_container_width=True, hide_index=True)
                 
                 st.markdown("---")
