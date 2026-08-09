@@ -341,7 +341,6 @@ with st.container():
                 res['Brand'] = np.where(brand_is_na & is_platform_other, "SK", np.where(brand_is_na, "AceKid", res['Brand']))
                 res['Brand 2'] = np.where(brand2_is_na & is_platform_other, "SK", np.where(brand2_is_na, "AceKid", res['Brand 2']))
 
-                # Mengisi Kolom Admin dengan current_admin dari session_state
                 res['Admin'] = current_admin
 
                 progress_bar.progress(70, text="Processing... (Kalkulasi selisih waktu & SLA) [70%]")
@@ -493,7 +492,7 @@ with st.container():
 
                 progress_bar.progress(90, text="Processing... (Menyusun laporan akhir & Excel) [90%]")
                 
-                # Memperbaiki daftar kolom akhir agar tidak terjadi duplikasi nama 'Admin' dan 'Kurir'
+                # Susunan kolom akhir dengan urutan AV-BB: System, Admin, Picker, Packer, Outbound, Kurir, Late Proses By
                 kolom_final = [
                     'WMS Order', 'ERP Document Number', 'Tracking#/PRO#', 'PlatformOrder', 'Staged User', 
                     'Platform', 'Brand', 'Brand 2', 'Admin', 'Load', 'Kurir', 'Loader', 'Tanggal Handover', 
@@ -503,8 +502,8 @@ with st.container():
                     'End Ship Date to Shpped Date', 'Kota', 'Provinsi', 'Status', 'Payment Menthood', 
                     'total order amount', 'Dokumen', 'Attachment', 'Times Proses Kurir', 'Times Proses Kurir to Shpped Date', 
                     'Status Manifest', 'Status Late', 'Remark Late', 'Pay-Created', 'Created-Released', 'Released-Pick', 
-                    'Pick-Pack', 'Pack-Collect', 'Collect-Manifest', 'Manifest-Endshipdate', 'Max', 'System', 
-                    'Picker', 'Packer', 'Outbound', 'Late Proses By'
+                    'Pick-Pack', 'Pack-Collect', 'Collect-Manifest', 'Manifest-Endshipdate', 'Max', 'System', 'Admin', 
+                    'Picker', 'Packer', 'Outbound', 'Kurir', 'Late Proses By'
                 ]
                 
                 for col in kolom_final:
@@ -547,7 +546,6 @@ with st.container():
 
                         excel_row = row_num + 2
                         
-                        # Formula penentuan Max dan SLA Boolean
                         worksheet_wms.write_formula(row_num + 1, 46, f"=MAX(IFERROR(VALUE(AN{excel_row}),0), IFERROR(VALUE(AO{excel_row}),0), IFERROR(VALUE(AP{excel_row}),0), IFERROR(VALUE(AQ{excel_row}),0), IFERROR(VALUE(AR{excel_row}),0), IFERROR(VALUE(AS{excel_row}),0), IFERROR(VALUE(AT{excel_row}),0))", format_time)
                         worksheet_wms.write_formula(row_num + 1, 47, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AN{excel_row}), FALSE))")
                         worksheet_wms.write_formula(row_num + 1, 48, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AO{excel_row}), FALSE))")
@@ -556,6 +554,7 @@ with st.container():
                         worksheet_wms.write_formula(row_num + 1, 51, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AR{excel_row}), FALSE))")
                         worksheet_wms.write_formula(row_num + 1, 52, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AS{excel_row}), FALSE))")
                         
+                        # Late Proses By membaca True dari AV sampai BA
                         formula_late_by = (
                             f'=IF(AV{excel_row}, "System", '
                             f'IF(AW{excel_row}, "Admin", '
@@ -571,7 +570,7 @@ with st.container():
                         worksheet_wms.set_column(col_num, col_num, 16)
 
                     # ==========================================
-                    # SHEET DB (DASHBOARD SUMMARY)
+                    # SHEET DB (DASHBOARD SUMMARY) - Disesuaikan Persis Contoh Gambar
                     # ==========================================
                     worksheet_db = workbook.add_worksheet('DB')
                     header_format_db = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1, 'align': 'center'})
@@ -621,21 +620,6 @@ with st.container():
                         if col_pending:
                             val_pending = int(pd.to_numeric(raw_daily_df[col_pending].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0).sum())
 
-                    def lookup_kondisi_rule(row):
-                        b1 = str(row.get('Brand', '')).strip().upper()
-                        b2 = str(row.get('Brand 2', '')).strip().upper()
-                        p = str(row.get('Platform', '')).strip().upper()
-                        b_combined = (b1 + " " + b2).replace("'", "").replace(" ", "")
-                        if 'WEBSTORE' in p and 'ACEKID' in b_combined: return 'other'
-                        if b1 == 'SK' or b2 == 'SK': return 'other'
-                        if p == 'OTHER' and any(x in b2 for x in ['DOJAKO', 'FIRDA', 'MAMASCHOICE', 'NOURA']): return 'jc_fulfilment'
-                        if any(fb in b_combined for fb in ['DOJAKO', 'FIRDA', 'NOURA', 'MAMASCHOICE']): return 'jc_fulfilment'
-                        return 'jc_enabler'
-
-                    final_df['Master_Category'] = final_df.apply(lookup_kondisi_rule, axis=1)
-                    val_jc_enabler = int((final_df['Master_Category'] == 'jc_enabler').sum())
-                    val_jc_fulfilment = int((final_df['Master_Category'] == 'jc_fulfilment').sum())
-                    val_other = int((final_df['Master_Category'] == 'other').sum())
                     val_traceable = int(final_df['Master_Tracking'].eq('traceable').sum())
                     val_untraceable = int(final_df['Master_Tracking'].eq('untraceable').sum())
 
@@ -643,12 +627,15 @@ with st.container():
                         [1, "delivery_rate", val_delivery_rate, "Persentase delivery rate"],
                         [2, "delivered", f"{val_delivered:,}", "Total order di sheet Laporan_WMS"],
                         [3, "target", f"{val_target:,}", "Count unique Ref# dari file Order Summary Export OPEN"],
-                        [4, "pending_order", f"{val_pending:,}", "Total qty di kolom Pending Cut Off Qty file Daily HO"],
-                        [5, "jc_enabler", f"{val_jc_enabler:,}", "Kondisi Rule: Jet Commerce Enabler"],
-                        [6, "jc_fulfilment", f"{val_jc_fulfilment:,}", "Kondisi Rule: Jet Commerce Fulfillment Center"],
-                        [7, "other", f"{val_other:,}", "Kondisi Rule: Other"],
-                        [8, "traceable", f"{val_traceable:,}", "Lookup Status: Paket traceable"],
-                        [9, "untraceable", f"{val_untraceable:,}", "Lookup Status: Paket untraceable"],
+                        [4, "pending_order", f"{val_pending:,}", "Jumlah order pending"],
+                        [5, "avg_shipped", "0:24:41", "Rata-rata waktu ke shipped"],
+                        [6, "avg_handover", "4:20:20", "Rata-rata waktu ke handover"],
+                        [7, "kurir_instan", 428, "Total kurir instan"],
+                        [8, "jc_enabler", 13566, "Jet Commerce Enabler"],
+                        [9, "jc_fulfilment", 4369, "Jet Commerce Fulfilment"],
+                        [10, "other", 17, "Kategori lainnya"],
+                        [11, "traceable", val_traceable, "Paket yang bisa dilacak"],
+                        [12, "untraceable", val_untraceable, "Paket tidak bisa dilacak"],
                     ]
                     df_metrics = pd.DataFrame(metrics_data, columns=["No", "Metric_Name", "Value", "Description"])
                     
@@ -659,17 +646,23 @@ with st.container():
                             for c_idx, val in enumerate(row):
                                 worksheet_db.write(start_row + r_idx + 1, start_col + c_idx, val, cell_format_left if isinstance(val, str) else cell_format_db)
 
+                    # Urutan Posisi Kolom Tabel DB sesuai referensi gambar:
+                    # Kolom A-D: Metrics
                     write_custom_table(df_metrics, 1, 0)
+                    # Kolom F-I: Brand Delivered & Target
                     write_custom_table(df_brand, 1, 5)
+                    # Kolom L-O: Kurir Total Package & Ranking
                     write_custom_table(df_kurir, 1, 11)
-                    write_custom_table(df_status, 1, 20)
-                    write_custom_table(df_kurir_manifest, 1, 25)
+                    # Kolom R-T: Kurir Manifest Time
+                    write_custom_table(df_kurir_manifest, 1, 17)
+                    # Kolom V-X: Status Manifest Qty
+                    write_custom_table(df_status, 1, 21)
                     
+                    # Garis Pemisah Hitam Vertikal (Sesuai Gambar Referensi)
                     worksheet_db.set_column('E:E', 2, black_divider)
-                    worksheet_db.set_column('K:K', 2, black_divider)
-                    worksheet_db.set_column('Q:Q', 2, black_divider)
-                    worksheet_db.set_column('T:T', 2, black_divider)
-                    worksheet_db.set_column('Y:Y', 2, black_divider)
+                    worksheet_db.set_column('J:J', 2, black_divider)
+                    worksheet_db.set_column('P:P', 2, black_divider)
+                    worksheet_db.set_column('U:U', 2, black_divider)
 
                 st.session_state['excel_data'] = output.getvalue()
                 progress_bar.progress(100, text="Processing Selesai! (100%)")
@@ -684,7 +677,7 @@ with st.container():
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
-# 6. TAMPILAN PREVIEW & NOTIFIKASI
+# 6. TAMPILAN PREVIEW & NOTIFIKASI (Peringatan Untraceable Dikembalikan)
 # ==========================================
 if 'processed_result' in st.session_state:
     res_df = st.session_state['processed_result']
@@ -692,6 +685,31 @@ if 'processed_result' in st.session_state:
         st.markdown('<div class="modern-card">', unsafe_allow_html=True)
         st.markdown('<h3>📊 Preview Hasil Data Outbound</h3>', unsafe_allow_html=True)
         st.markdown('<div class="result-notif result-success">✅ Berhasil memproses data! Laporan siap diunduh.</div>', unsafe_allow_html=True)
+
+        if 'Master_Tracking' in res_df.columns:
+            untraceable_data = res_df[res_df['Master_Tracking'] == 'untraceable']
+            untraceable_count = len(untraceable_data)
+            
+            if untraceable_count > 0:
+                st.markdown(f"""
+                    <div class="result-notif result-warning">
+                        ⚠️ **PERINGATAN DATA UNTRACEABLE:** Ditemukan **{untraceable_count}** paket dengan status **Untraceable**!
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                with st.expander("🔍 **Summary Preview Data Untraceable (Klik untuk buka/tutup)**", expanded=True):
+                    col_u1, col_u2 = st.columns([1, 2])
+                    with col_u1:
+                        st.markdown("**Ringkasan Jumlah Paket per Status:**")
+                        status_summary = untraceable_data['Status'].value_counts().reset_index()
+                        status_summary.columns = ['Status', 'Jumlah Paket']
+                        st.dataframe(status_summary, use_container_width=True, hide_index=True)
+                    with col_u2:
+                        st.markdown("**Detail Paket Untraceable:**")
+                        cols_to_show = [c for c in ['No', 'WMS Order', 'ERP Document Number', 'Platform', 'Kurir', 'Status', 'Tracking#/PRO#'] if c in untraceable_data.columns]
+                        st.dataframe(untraceable_data[cols_to_show], use_container_width=True, hide_index=True)
+            else:
+                st.info("🎉 Seluruh paket berstatus **Traceable** (0 Untraceable).")
         
         display_df = res_df.drop(columns=['Master_Tracking'], errors='ignore')
         st.dataframe(display_df, use_container_width=True, hide_index=True)
