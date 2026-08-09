@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 import traceback
@@ -20,36 +19,7 @@ st.set_page_config(
 current_date_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 # ==========================================
-# 2. SKRIP JAVASCRIPT PEMBERSIH PAKSA (BADGE & TOOLBAR)
-# ==========================================
-components.html(
-    """
-    <script>
-        const observer = new MutationObserver((mutations, obs) => {
-            const doc = window.parent.document;
-            const badge = doc.querySelector('.viewerBadge');
-            const toolbar = doc.querySelector('[data-testid="stToolbar"]');
-            const deployButton = doc.querySelector('.stDeployButton');
-            const statusWidget = doc.querySelector('[data-testid="stStatusWidget"]');
-            
-            if (badge) badge.remove();
-            if (toolbar) toolbar.remove();
-            if (deployButton) deployButton.remove();
-            if (statusWidget) statusWidget.remove();
-        });
-        
-        observer.observe(window.parent.document, {
-            childList: true,
-            subtree: true
-        });
-    </script>
-    """,
-    height=0,
-    width=0
-)
-
-# ==========================================
-# 3. CSS KUSTOM (Menghilangkan Sidebar & Badge Pojok Kanan Bawah)
+# 2. CSS KUSTOM (Aman & Tanpa Skrip Eksternal)
 # ==========================================
 custom_css = """
 <style>
@@ -158,7 +128,7 @@ custom_css = """
     .result-warning { background-color: #FEF2F2; color: #991B1B; border: 1px solid #FCA5A5; }
 
     /* ==========================================
-       SEMBUNYIKAN MENU BALON & BADGE POJOK KANAN BAWAH
+       SEMBUNYIKAN MENU & BADGE POJOK KANAN BAWAH
        ========================================== */
     #MainMenu { visibility: hidden !important; display: none !important; }
     footer { visibility: hidden !important; display: none !important; }
@@ -167,20 +137,20 @@ custom_css = """
     [data-testid="stToolbar"] { visibility: hidden !important; display: none !important; }
     [data-testid="stDecoration"] { visibility: hidden !important; display: none !important; }
     [data-testid="stStatusWidget"] { visibility: hidden !important; display: none !important; }
-    div.viewerBadge_container__1QSob { visibility: hidden !important; display: none !important; }
-    .viewerBadge { visibility: hidden !important; display: none !important; }
-    iframe[title="streamlitApp"] { display: none !important; }
     
-    div:has(> iframe), footer + div, .reportview-container .main footer, div[class*="viewerBadge"] {
+    /* Sembunyikan badge pojok kanan bawah Streamlit */
+    div[class*="viewerBadge"] {
         display: none !important;
         visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
     }
 </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
 
 # ==========================================
-# 4. TOP BAR & DATA CENTER (UPLOAD + INPUT OFFICER)
+# 3. TOP BAR & DATA CENTER (UPLOAD + INPUT OFFICER)
 # ==========================================
 st.markdown(f"""
     <div class="top-bar">
@@ -240,7 +210,7 @@ with st.container():
         )
 
     # ==========================================
-    # 5. LOGIKA UTAMA PEMPROSESAN DATA
+    # 4. LOGIKA UTAMA PEMPROSESAN DATA
     # ==========================================
     if execute_clicked:
         if uploaded_files:
@@ -1001,7 +971,6 @@ if 'processed_result' in st.session_state:
                 
                 stat_df['Total Late'] = stat_df.sum(axis=1)
                 
-                # Pengaman untuk membersihkan kolom 'index' agar tidak terjadi ValueError
                 if 'index' in stat_df.columns:
                     stat_df = stat_df.drop(columns=['index'])
                 
