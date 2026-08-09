@@ -111,20 +111,6 @@ custom_css = """
     .todo-label { font-size: 13px; font-weight: 500; opacity: 0.95; line-height: 1.3; }
     .todo-value { font-size: 22px; font-weight: 700; margin-top: 8px; }
 
-    /* Stats Row Styling */
-    .stats-row {
-        display: flex;
-        justify-content: space-around;
-        text-align: center;
-        padding: 10px 0;
-        flex-wrap: wrap;
-        gap: 10px;
-    }
-    .stat-item { flex: 1; min-width: 120px; border-right: 1px solid #F0F0F0; }
-    .stat-item:last-child { border-right: none; }
-    .stat-label { color: #8C8C8C; font-size: 13px; margin-bottom: 6px; font-weight: 500; }
-    .stat-value { color: #1890FF; font-size: 20px; font-weight: 700; }
-
     /* Form Inputs & Buttons */
     [data-testid="stTextInput"] > div > div > input {
         border-radius: 6px;
@@ -222,7 +208,7 @@ with st.container():
         )
 
     # ==========================================
-    # 5. LOGIKA UTAMA PEMPROSESAN DATA (Exact logic from app last update)
+    # 5. LOGIKA UTAMA PEMPROSESAN DATA
     # ==========================================
     if execute_clicked:
         if uploaded_files:
@@ -874,7 +860,7 @@ with st.container():
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
-# 6. TAMPILAN DASHBOARD QIANYI (Todo & Stats Rows) & PREVIEW
+# 6. TAMPILAN DASHBOARD QIANYI & PREVIEW
 # ==========================================
 if 'processed_result' in st.session_state:
     res_df = st.session_state['processed_result']
@@ -914,35 +900,6 @@ if 'processed_result' in st.session_state:
         """, unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # --- OUTBOUND STATS ROW ---
-        st.markdown('<div class="section-container">', unsafe_allow_html=True)
-        st.markdown('<div class="section-title">📤 Outbound Performance Summary</div>', unsafe_allow_html=True)
-        st.markdown(f"""
-        <div class="stats-row">
-            <div class="stat-item">
-                <div class="stat-label">Total Delivered</div>
-                <div class="stat-value">{m.get('Delivered', 0)}</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-label">Target Order</div>
-                <div class="stat-value">{m.get('Target', 0)}</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-label">Delivery Rate</div>
-                <div class="stat-value">{m.get('Delivery Rate', '0%')}</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-label">Pending Order</div>
-                <div class="stat-value">{m.get('Pending', 0)}</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-label">Total Late</div>
-                <div class="stat-value" style="color: #EF4444;">{m.get('Total Late', 0)}</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
     # --- TABS: ANALYTICS KURIR, UNTRACEABLE CHECK, DATA PREVIEW ---
     st.markdown('<div class="section-container">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">📊 Analisis & Data Preview</div>', unsafe_allow_html=True)
@@ -966,7 +923,6 @@ if 'processed_result' in st.session_state:
                 )
                 bars = base.mark_bar(cornerRadiusTopRight=4, cornerRadiusBottomRight=4, height=22)
                 
-                # Teks warna hitam untuk kontras yang jelas sesuai permintaan sebelumnya
                 text = base.mark_text(
                     align='center',
                     baseline='middle',
