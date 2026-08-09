@@ -903,19 +903,19 @@ if 'processed_result' in st.session_state:
     tab1, tab2, tab3 = st.tabs(["📈 Analytics Kurir", "🔍 Untraceable Check", "📋 Data Preview"])
     
     with tab1:
-        col_title, col_toolbar = st.columns([2.5, 1.5])
+        # Layout Header dengan Judul di Kiri dan Dropdown Toolbar di Kanan Atas Tabel
+        col_title, col_toolbar = st.columns([2.3, 1.7])
         with col_title:
             st.markdown("### Analisis Keterlambatan per Kurir (Status Manifest Late)")
         with col_toolbar:
-            # Dropdown pilihan sebagai toolbar dengan default Statistik Persentase (%)
             view_mode = st.selectbox(
-                "Toolbar View",
+                "Pilih Tampilan",
                 ["Statistik Persentase (%)", "Tabel Statistik Keterlambatan"],
-                index=0,
+                index=0,  # Default preview diset ke Statistik Persentase (%)
                 label_visibility="collapsed"
             )
         
-        st.markdown("<hr style='margin: 5px 0 15px 0; border: none; border-top: 1px solid #E8E8E8;'>", unsafe_allow_html=True)
+        st.markdown("<hr style='margin: 0px 0 15px 0; border: none; border-top: 1px solid #E8E8E8;'>", unsafe_allow_html=True)
 
         if 'Status Manifest' in res_df.columns and 'Late Proses By' in res_df.columns and 'Kurir' in res_df.columns:
             late_df_web = res_df[res_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late'].copy()
