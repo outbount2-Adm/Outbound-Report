@@ -13,13 +13,13 @@ st.set_page_config(
     page_title="Outbound Logistic Dashboard", 
     layout="wide", 
     page_icon="📦", 
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 current_date_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 # ==========================================
-# 2. CSS KUSTOM (Termasuk Penghilang Menu Balon & Floating Toolbar)
+# 2. CSS KUSTOM (Menghilangkan Sidebar & Badge Pojok Kanan Bawah Secara Total)
 # ==========================================
 custom_css = """
 <style>
@@ -33,24 +33,20 @@ custom_css = """
         background-color: #F0F2F5; 
     }
 
-    /* Sidebar Styling */
+    /* ==========================================
+       SEMBUNYIKAN SIDEBAR & KONTROLNYA SECARA TOTAL
+       ========================================== */
     [data-testid="stSidebar"] {
-        background-color: #001529 !important;
-        color: white !important;
+        display: none !important;
+        visibility: hidden !important;
+        width: 0 !important;
     }
-    [data-testid="stSidebar"] .sidebar-item {
-        color: #A6ADB4 !important;
-        padding: 10px;
-        margin-bottom: 5px;
-        cursor: pointer;
+    [data-testid="collapsedControl"] {
+        display: none !important;
+        visibility: hidden !important;
     }
-    .sidebar-active {
-        background-color: #1890FF !important;
-        color: white !important;
-        border-radius: 4px;
-        padding: 10px;
-        margin-bottom: 5px;
-        font-weight: 600;
+    section[data-testid="stSidebar"] {
+        display: none !important;
     }
 
     /* Top Bar / Header */
@@ -132,7 +128,7 @@ custom_css = """
     .result-warning { background-color: #FEF2F2; color: #991B1B; border: 1px solid #FCA5A5; }
 
     /* ==========================================
-       SEMBUNYIKAN MENU BALON & TOOLBAR POJOK KANAN BAWAH
+       SEMBUNYIKAN MENU BALON & BADGE POJOK KANAN BAWAH
        ========================================== */
     #MainMenu { visibility: hidden !important; display: none !important; }
     footer { visibility: hidden !important; display: none !important; }
@@ -144,39 +140,22 @@ custom_css = """
     div.viewerBadge_container__1QSob { visibility: hidden !important; display: none !important; }
     .viewerBadge { visibility: hidden !important; display: none !important; }
     iframe[title="streamlitApp"] { display: none !important; }
+    
+    /* Paksa elemen fixed di pojok kanan bawah agar hilang */
+    div:has(> iframe), footer + div, .reportview-container .main footer, div[class*="viewerBadge"] {
+        display: none !important;
+        visibility: hidden !important;
+    }
 </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
 
 # ==========================================
-# 3. SIDEBAR NAVIGATION
-# ==========================================
-with st.sidebar:
-    st.markdown('<div style="font-size: 20px; font-weight: 800; color: white; margin-bottom: 25px; padding: 0 5px;">📦 Outbound Logis</div>', unsafe_allow_html=True)
-    
-    st.markdown('<div class="sidebar-active">📊 Dashboard</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sidebar-item">📝 Task Management</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sidebar-item">👥 User Management</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sidebar-item">📂 Master Data</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sidebar-item">📥 Inbound</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sidebar-item">📤 Outbound</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sidebar-item">🏠 Storage</div>', unsafe_allow_html=True)
-    
-    st.divider()
-    if st.button("🗑️ Reset Data & Cache", use_container_width=True, type="secondary"):
-        if 'file_uploader_key' not in st.session_state: st.session_state['file_uploader_key'] = 0
-        st.session_state['file_uploader_key'] += 1
-        if 'processed_result' in st.session_state: del st.session_state['processed_result']
-        if 'excel_data' in st.session_state: del st.session_state['excel_data']
-        if 'metrics' in st.session_state: del st.session_state['metrics']
-        st.rerun()
-
-# ==========================================
-# 4. TOP BAR & DATA CENTER (UPLOAD + INPUT OFFICER)
+# 3. TOP BAR & DATA CENTER (UPLOAD + INPUT OFFICER)
 # ==========================================
 st.markdown(f"""
     <div class="top-bar">
-        <div style="font-weight: 700; color: #1890FF; font-size: 16px;">Automated Data Processing</div>
+        <div style="font-weight: 700; color: #1890FF; font-size: 16px;">📦 Outbound Logis - Automated Data Processing</div>
         <div style="font-size: 13px; color: #8C8C8C;">Update time: {current_date_time} <span style="color: #1890FF; margin-left: 10px; font-weight: 600;">Active 🔄</span></div>
     </div>
 """, unsafe_allow_html=True)
@@ -188,7 +167,7 @@ with st.container():
     if 'saved_admin' not in st.session_state:
         st.session_state['saved_admin'] = "Admin Logistik"
     
-    col_off1, col_off2 = st.columns([4, 1])
+    col_off1, col_off2, col_off3 = st.columns([3, 1, 1])
     with col_off1:
         admin_input = st.text_input("✍️ Input Officer Name", value=st.session_state['saved_admin'])
     with col_off2:
@@ -196,6 +175,14 @@ with st.container():
         if st.button("Update Nama", use_container_width=True, type="secondary"):
             st.session_state['saved_admin'] = admin_input
             st.success("Nama diperbarui!")
+            st.rerun()
+    with col_off3:
+        st.write("")
+        if st.button("🗑️ Reset Cache", use_container_width=True, type="secondary"):
+            if 'file_uploader_key' not in st.session_state: st.session_state['file_uploader_key'] = 0
+            st.session_state['file_uploader_key'] += 1
+            for k in ['processed_result', 'excel_data', 'metrics']:
+                if k in st.session_state: del st.session_state[k]
             st.rerun()
 
     st.divider()
@@ -224,7 +211,7 @@ with st.container():
         )
 
     # ==========================================
-    # 5. LOGIKA UTAMA PEMPROSESAN DATA
+    # 4. LOGIKA UTAMA PEMPROSESAN DATA
     # ==========================================
     if execute_clicked:
         if uploaded_files:
@@ -874,7 +861,7 @@ with st.container():
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
-# 6. TAMPILAN DASHBOARD & PREVIEW
+# 5. TAMPILAN DASHBOARD & PREVIEW
 # ==========================================
 if 'processed_result' in st.session_state:
     res_df = st.session_state['processed_result']
@@ -924,7 +911,7 @@ if 'processed_result' in st.session_state:
             late_df_web = res_df[res_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late'].copy()
             
             if not late_df_web.empty:
-                # 1. TAMPILKAN CHART (GRAFIK BATANG)
+                # 1. CHART
                 chart_df = late_df_web.groupby(['Kurir', 'Late Proses By']).size().reset_index(name='Qty')
                 chart_df = chart_df[chart_df['Qty'] > 0]
                 chart_df = chart_df.sort_values(by=['Kurir', 'Late Proses By'])
@@ -960,7 +947,7 @@ if 'processed_result' in st.session_state:
 
                 st.markdown("---")
 
-                # 2. TAMPILKAN TABEL STATISTIK / CROSS-TABULATION SESUAI GAMBAR
+                # 2. TABEL STATISTIK / CROSS-TABULATION
                 st.markdown("**Tabel Statistik Keterlambatan (Kurir vs Penyebab Keterlambatan):**")
                 
                 stat_df = pd.pivot_table(
@@ -972,7 +959,6 @@ if 'processed_result' in st.session_state:
                     fill_value=0
                 )
                 
-                # Memastikan kolom standar selalu ada secara berurutan
                 expected_cols = ['Admin', 'Outbound', 'Packer', 'Picker', 'System', 'Kurir']
                 for col in expected_cols:
                     if col not in stat_df.columns:
