@@ -592,8 +592,14 @@ with st.container():
                     workbook = writer.book
                     worksheet_wms = writer.sheets['Laporan_WMS']
                     
+                    # Mengaktifkan proteksi sheet agar atribut hidden rumus aktif
+                    worksheet_wms.protect()
+                    
+                    # Format cell dengan hidden=True (sembunyikan rumus) dan locked=True
+                    format_hidden = workbook.add_format({'hidden': True, 'align': 'center', 'valign': 'vcenter', 'border': 1})
+                    format_hidden_time = workbook.add_format({'hidden': True, 'num_format': 'hh:mm:ss', 'border': 1, 'align': 'center', 'valign': 'vcenter'})
+                    
                     format_header = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1, 'align': 'center', 'valign': 'vcenter'})
-                    format_time = workbook.add_format({'num_format': 'hh:mm:ss', 'border': 1, 'align': 'center', 'valign': 'vcenter'})
                     cell_format_center = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
                     
                     col_idx_track = list(df_to_export.columns).index('Tracking#/PRO#')
@@ -607,13 +613,14 @@ with st.container():
 
                         excel_row = row_num + 2
                         
-                        worksheet_wms.write_formula(row_num + 1, 46, f"=MAX(IFERROR(VALUE(AN{excel_row}),0), IFERROR(VALUE(AO{excel_row}),0), IFERROR(VALUE(AP{excel_row}),0), IFERROR(VALUE(AQ{excel_row}),0), IFERROR(VALUE(AR{excel_row}),0), IFERROR(VALUE(AS{excel_row}),0), IFERROR(VALUE(AT{excel_row}),0))", format_time)
-                        worksheet_wms.write_formula(row_num + 1, 47, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AN{excel_row}), FALSE))")
-                        worksheet_wms.write_formula(row_num + 1, 48, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AO{excel_row}), FALSE))")
-                        worksheet_wms.write_formula(row_num + 1, 49, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AP{excel_row}), FALSE))")
-                        worksheet_wms.write_formula(row_num + 1, 50, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AQ{excel_row}), FALSE))")
-                        worksheet_wms.write_formula(row_num + 1, 51, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AR{excel_row}), FALSE))")
-                        worksheet_wms.write_formula(row_num + 1, 52, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AS{excel_row}), FALSE))")
+                        # Menulis formula dengan format cell tersembunyi (hidden=True)
+                        worksheet_wms.write_formula(row_num + 1, 46, f"=MAX(IFERROR(VALUE(AN{excel_row}),0), IFERROR(VALUE(AO{excel_row}),0), IFERROR(VALUE(AP{excel_row}),0), IFERROR(VALUE(AQ{excel_row}),0), IFERROR(VALUE(AR{excel_row}),0), IFERROR(VALUE(AS{excel_row}),0), IFERROR(VALUE(AT{excel_row}),0))", format_hidden_time)
+                        worksheet_wms.write_formula(row_num + 1, 47, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AN{excel_row}), FALSE))", format_hidden)
+                        worksheet_wms.write_formula(row_num + 1, 48, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AO{excel_row}), FALSE))", format_hidden)
+                        worksheet_wms.write_formula(row_num + 1, 49, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AP{excel_row}), FALSE))", format_hidden)
+                        worksheet_wms.write_formula(row_num + 1, 50, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AQ{excel_row}), FALSE))", format_hidden)
+                        worksheet_wms.write_formula(row_num + 1, 51, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AR{excel_row}), FALSE))", format_hidden)
+                        worksheet_wms.write_formula(row_num + 1, 52, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AS{excel_row}), FALSE))", format_hidden)
                         
                         formula_late_by = (
                             f'=IF(AV{excel_row}, "System", '
@@ -623,7 +630,7 @@ with st.container():
                             f'IF(AZ{excel_row}, "Outbound", '
                             f'IF(BA{excel_row}, "Kurir", ""))))))'
                         )
-                        worksheet_wms.write_formula(row_num + 1, 53, formula_late_by)
+                        worksheet_wms.write_formula(row_num + 1, 53, formula_late_by, format_hidden)
 
                     for col_num, col_name in enumerate(df_to_export.columns):
                         worksheet_wms.write(0, col_num, col_name, format_header)
