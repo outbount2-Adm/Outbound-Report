@@ -396,9 +396,19 @@ with st.container():
                 res['Shipped Date'] = res[next((c for c in res.columns if 'shipped date' in c.lower()), None)] if next((c for c in res.columns if 'shipped date' in c.lower()), None) else np.nan
                 
                 if 'Waktu_HO' in ho_col_map:
-                    raw_ho = df_ho[ho_col_map['Waktu_HO']].apply(lambda val: f"{val.year}-{val.month:02d}-{val.day:02d} {val.hour:02d}:{val.minute:02d}:{val.second:02d}" if isinstance(val, datetime.datetime) else str(val))
-                    parsed_ho = pd.to_datetime(raw_ho, errors='coerce')
-                    res['Handover Date'] = parsed_ho.dt.strftime('%Y-%m-%d %H:%M:%S')
+                    def safe_ho_parse(val):
+                        if pd.isna(val): return pd.NaT
+                        if isinstance(val, (int, float)):
+                            try:
+                                return pd.to_datetime('1899-12-30') + pd.to_timedelta(val, unit='D')
+                            except:
+                                return pd.NaT
+                        if isinstance(val, datetime.datetime):
+                            return val
+                        return pd.to_datetime(val, errors='coerce')
+                    
+                    parsed_ho = df_ho[ho_col_map['Waktu_HO']].apply(safe_ho_parse)
+                    res['Handover Date'] = parsed_ho.dt.strftime('%Y-%m-%d %H:%M:%S').replace('NaT', np.nan).fillna('')
                     res['Handover_Date_Raw'] = parsed_ho
                 else:
                     res['Handover Date'] = np.nan; res['Handover_Date_Raw'] = pd.NaT
@@ -535,7 +545,6 @@ with st.container():
 
                         excel_row = row_num + 2
                         
-                        # Perbaikan Formula Excel menggunakan VALUE() agar bisa dibaca fungsi MAX dan Logika Perbandingan
                         worksheet_wms.write_formula(row_num + 1, 46, f"=MAX(IFERROR(VALUE(AN{excel_row}),0), IFERROR(VALUE(AO{excel_row}),0), IFERROR(VALUE(AP{excel_row}),0), IFERROR(VALUE(AQ{excel_row}),0), IFERROR(VALUE(AR{excel_row}),0), IFERROR(VALUE(AS{excel_row}),0), IFERROR(VALUE(AT{excel_row}),0))", format_time)
                         worksheet_wms.write_formula(row_num + 1, 47, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AN{excel_row}), FALSE))")
                         worksheet_wms.write_formula(row_num + 1, 48, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AO{excel_row}), FALSE))")
