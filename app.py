@@ -903,15 +903,15 @@ if 'processed_result' in st.session_state:
     tab1, tab2, tab3 = st.tabs(["📈 Analytics Kurir", "🔍 Untraceable Check", "📋 Data Preview"])
     
     with tab1:
-        # Layout Header dengan Judul di Kiri dan Radio Button Opsi di Kanan
-        col_title, col_radio = st.columns([2.5, 1.5])
+        col_title, col_toolbar = st.columns([2.5, 1.5])
         with col_title:
             st.markdown("### Analisis Keterlambatan per Kurir (Status Manifest Late)")
-        with col_radio:
-            view_mode = st.radio(
-                "Pilih Tampilan",
-                ["Tabel Statistik Keterlambatan", "Statistik Persentase (%)"],
-                horizontal=True,
+        with col_toolbar:
+            # Dropdown pilihan sebagai toolbar dengan default Statistik Persentase (%)
+            view_mode = st.selectbox(
+                "Toolbar View",
+                ["Statistik Persentase (%)", "Tabel Statistik Keterlambatan"],
+                index=0,
                 label_visibility="collapsed"
             )
         
@@ -952,11 +952,7 @@ if 'processed_result' in st.session_state:
                 stat_df['Total Late'] = stat_df[expected_cols].sum(axis=1)
                 stat_df = stat_df.sort_values(by='Total Late', ascending=False).reset_index(drop=True)
 
-                if view_mode == "Tabel Statistik Keterlambatan":
-                    stat_df_display = stat_df.copy()
-                    stat_df_display.columns.name = None
-                    st.dataframe(stat_df_display, use_container_width=True, hide_index=True)
-                else:
+                if view_mode == "Statistik Persentase (%)":
                     total_all_late = stat_df['Total Late'].sum()
                     if total_all_late > 0:
                         for _, row in stat_df.iterrows():
@@ -977,6 +973,10 @@ if 'processed_result' in st.session_state:
                             """, unsafe_allow_html=True)
                     else:
                         st.info("ℹ️ Tidak ada data keterlambatan.")
+                else:
+                    stat_df_display = stat_df.copy()
+                    stat_df_display.columns.name = None
+                    st.dataframe(stat_df_display, use_container_width=True, hide_index=True)
             else:
                 st.info("ℹ️ Tidak ada data dengan status manifest 'Late'.")
         else:
