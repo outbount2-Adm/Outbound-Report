@@ -511,6 +511,30 @@ with st.container():
                         except: sec_list.append(0.0)
                     return pd.Series(sec_list)
 
+                # --- HITUNG LATE PROSES BY DI PYTHON AGAR MUNCUL NILAINYA ---
+                sec_an = get_safe_seconds(res['Pay-Created'])
+                sec_ao = get_safe_seconds(res['Created-Released'])
+                sec_ap = get_safe_seconds(res['Released-Pick'])
+                sec_aq = get_safe_seconds(res['Pick-Pack'])
+                sec_ar = get_safe_seconds(res['Pack-Collect'])
+                sec_as = get_safe_seconds(res['Collect-Manifest'])
+                sec_at = get_safe_seconds(res['Manifest-Endshipdate'])
+
+                max_sec = np.maximum.reduce([sec_an, sec_ao, sec_ap, sec_aq, sec_ar, sec_as, sec_at])
+
+                res['Late Proses By'] = np.select(
+                    [
+                        (max_sec > 0) & (max_sec == sec_an),
+                        (max_sec > 0) & (max_sec == sec_ao),
+                        (max_sec > 0) & (max_sec == sec_ap),
+                        (max_sec > 0) & (max_sec == sec_aq),
+                        (max_sec > 0) & (max_sec == sec_ar),
+                        (max_sec > 0) & (max_sec == sec_as),
+                    ],
+                    ["System", "Admin", "Picker", "Packer", "Outbound", "Kurir"],
+                    default=""
+                )
+
                 progress_bar.progress(90, text="Processing... (Menyusun laporan akhir & Excel) [90%]")
                 
                 res['Admin '] = res['Admin']
@@ -650,7 +674,7 @@ with st.container():
                     val_delivered = len(final_df)
                     val_delivery_rate = round((val_delivered / val_target * 100), 2) if val_target > 0 else 0.0
 
-                    # 1. Kalkulasi Akurat Kurir Instan dari file Daily HO (mengabaikan baris Total)
+                    # 1. Kalkulasi Akurat Kurir Instan dari Daily HO (tanpa baris total)
                     raw_daily_df = dfs.get('daily_ho', pd.DataFrame()).copy()
                     val_kurir_instan = 0
                     if not raw_daily_df.empty:
@@ -694,7 +718,6 @@ with st.container():
                                     except:
                                         pass
 
-                    # Jika Daily HO kosong, gunakan fallback dari final_df
                     if val_kurir_instan == 0 and 'Kurir' in final_df.columns:
                         instan_list = [
                             'go-jek/grab/shopee instant',
@@ -703,19 +726,15 @@ with st.container():
                         ]
                         val_kurir_instan = int(final_df['Kurir'].astype(str).str.strip().str.lower().isin(instan_list).sum())
 
-                    # 2, 3, 4. Kalkulasi akurat jc_fulfilment, jc_enabler, dan other berdasarkan Brand 2 dan Platform
+                    # 2, 3, 4. Kalkulasi Akurat jc_fulfilment, jc_enabler, dan other
                     brand2_series = final_df['Brand 2'].astype(str).str.strip().str.lower()
                     platform_series = final_df['Platform'].astype(str).str.strip().str.lower()
                     
                     fulfilment_brands = ['dojako', 'firda', 'noura', "mama's choice", 'mamas choice']
                     
                     is_fulfilment = brand2_series.isin(fulfilment_brands)
-                    
-                    # Kondisi Other: (Platform Webstore dan Brand 2 Acekid) ATAU (Platform Other dan Brand 2 SK)
                     is_other = ((platform_series == 'webstore') & (brand2_series == 'acekid')) | \
                                ((platform_series == 'other') & (brand2_series == 'sk'))
-                               
-                    # jc_enabler adalah sisanya (selain fulfilment dan other)
                     is_enabler = ~is_fulfilment & ~is_other
 
                     val_jc_fulfilment = int(is_fulfilment.sum())
