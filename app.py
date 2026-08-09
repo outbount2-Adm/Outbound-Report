@@ -10,7 +10,7 @@ from io import BytesIO
 # 1. KONFIGURASI HALAMAN (QianYi Style)
 # ==========================================
 st.set_page_config(
-    page_title="QianYi Logistics Dashboard", 
+    page_title="Outbound Logistics Dashboard", 
     layout="wide", 
     page_icon="📦", 
     initial_sidebar_state="expanded"
@@ -222,7 +222,7 @@ with st.container():
         )
 
     # ==========================================
-    # 5. LOGIKA UTAMA PEMPROSESAN DATA
+    # 5. LOGIKA UTAMA PEMPROSESAN DATA (Exact logic from app last update)
     # ==========================================
     if execute_clicked:
         if uploaded_files:
@@ -958,33 +958,27 @@ if 'processed_result' in st.session_state:
                 chart_df = late_df_web.groupby(['Kurir', 'Late Proses By']).size().reset_index(name='Qty')
                 chart_df = chart_df.sort_values(by='Qty', ascending=False)
                 
-                # Menggunakan base chart dengan stacking standar Altair agar bar dan teks muncul bersamaan secara akurat
                 base = alt.Chart(chart_df).encode(
-                    y=alt.Y('Kurir:N', sort='-x', title='Kurir / Ekspedisi', axis=alt.Axis(labelLimit=200, titleFontWeight=600)),
-                    x=alt.X('Qty:Q', stack='zero', title='Jumlah Order Terlambat (Unit)', axis=alt.Axis(grid=True, gridColor='#F1F5F9', domainColor='#E2E8F0')),
-                    color=alt.Color('Late Proses By:N', scale=alt.Scale(scheme='tableau10'), legend=alt.Legend(title="Penyebab Keterlambatan", orient="bottom", titleFontWeight=600)),
-                    tooltip=[
-                        alt.Tooltip('Kurir:N', title='Kurir'),
-                        alt.Tooltip('Late Proses By:N', title='Penyebab'),
-                        alt.Tooltip('Qty:Q', title='Jumlah (Unit)', format=',')
-                    ]
+                    y=alt.Y('Kurir:N', sort='-x', title='Kurir / Ekspedisi'),
+                    x=alt.X('Qty:Q', stack='zero', title='Jumlah Order (Unit)'),
+                    color=alt.Color('Late Proses By:N', scale=alt.Scale(scheme='set2'), legend=alt.Legend(title="Penyebab Keterlambatan", orient="bottom")),
+                    tooltip=['Kurir', 'Late Proses By', 'Qty']
                 )
+                bars = base.mark_bar(cornerRadiusTopRight=4, cornerRadiusBottomRight=4, height=22)
                 
-                # Bar dengan sudut melengkung
-                bars = base.mark_bar(cornerRadiusTopRight=6, cornerRadiusBottomRight=6, height=24, opacity=0.9)
-                
-                # Teks nilai di dalam bar
+                # Teks warna hitam untuk kontras yang jelas sesuai permintaan sebelumnya
                 text = base.mark_text(
                     align='center',
                     baseline='middle',
                     fontWeight='bold',
                     fontSize=11,
-                    color='white'
+                    color='black'
                 ).encode(
+                    x=alt.X('Qty:Q', stack='center'),
                     text=alt.Text('Qty:Q', format=',')
                 )
                 
-                chart = (bars + text).properties(height=420, padding={'left': 10, 'right': 10, 'top': 10, 'bottom': 10}).interactive()
+                chart = (bars + text).properties(height=400)
                 st.altair_chart(chart, use_container_width=True)
             else:
                 st.info("ℹ️ Tidak ada data dengan status manifest 'Late'.")
