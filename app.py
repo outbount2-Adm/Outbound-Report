@@ -960,7 +960,9 @@ if 'processed_result' in st.session_state:
 
                 st.markdown("---")
 
-                # 2. TAMPILKAN TABEL STATISTIK / CROSS-TABULATION
+                # 2. TAMPILKAN TABEL STATISTIK / CROSS-TABULATION SESUAI GAMBAR
+                st.markdown("**Tabel Statistik Keterlambatan (Kurir vs Penyebab Keterlambatan):**")
+                
                 stat_df = pd.pivot_table(
                     late_df_web,
                     index='Kurir',
@@ -969,13 +971,22 @@ if 'processed_result' in st.session_state:
                     aggfunc='count',
                     fill_value=0
                 )
+                
+                # Memastikan kolom standar selalu ada secara berurutan
+                expected_cols = ['Admin', 'Outbound', 'Packer', 'Picker', 'System', 'Kurir']
+                for col in expected_cols:
+                    if col not in stat_df.columns:
+                        stat_df[col] = 0
+                
+                other_cols = [c for c in stat_df.columns if c not in expected_cols]
+                stat_df = stat_df[expected_cols + other_cols]
+                
                 if '' in stat_df.columns:
                     stat_df = stat_df.drop(columns=[''])
                 
                 stat_df['Total Late'] = stat_df.sum(axis=1)
                 stat_df = stat_df.sort_values(by='Total Late', ascending=False).reset_index()
                 
-                st.markdown("**Tabel Statistik Keterlambatan (Kurir vs Penyebab Keterlambatan):**")
                 st.dataframe(stat_df, use_container_width=True, hide_index=True)
             else:
                 st.info("ℹ️ Tidak ada data dengan status manifest 'Late'.")
