@@ -154,7 +154,7 @@ st.markdown(custom_css, unsafe_allow_html=True)
 # ==========================================
 st.markdown(f"""
     <div class="top-bar">
-        <div style="font-weight: 700; color: #1890FF; font-size: 16px;">📦 Outbound Logis - Automated Data Processing</div>
+        <div style="font-weight: 700; color: #1890FF; font-size: 16px;">📦 Automated Data Processing</div>
         <div style="font-size: 13px; color: #8C8C8C;">Update time: {current_date_time} <span style="color: #1890FF; margin-left: 10px; font-weight: 600;">Active 🔄</span></div>
     </div>
 """, unsafe_allow_html=True)
