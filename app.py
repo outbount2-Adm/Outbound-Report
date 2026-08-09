@@ -313,7 +313,7 @@ with st.container():
                 track_empty = res['Tracking#/PRO#'].isna() | (res['Tracking#/PRO#'].astype(str).str.strip() == '') | (res['Tracking#/PRO#'].astype(str).str.strip().str.lower() == 'nan')
                 res['Tracking#/PRO#'] = np.where(track_empty & is_platform_other, res['WMS Order'], res['Tracking#/PRO#'])
 
-                platord_empty = res['PlatformOrder'].isna() | (res['PlatformOrder'].astype(str).str.strip() == '') | (res['PlatformOrder'].astype(str).str.lower() == 'nan')
+                platord_empty = res['PlatformOrder'].isna() | (res['PlatformOrder'].astype(str).str.strip() == '') | (res['PlatformOrder'].astype(str).str.strip().str.lower() == 'nan')
                 res['PlatformOrder'] = np.where(platord_empty & is_platform_other, res['WMS Order'], res['PlatformOrder'])
 
                 df_op = dfs['op_log']
@@ -903,7 +903,6 @@ if 'processed_result' in st.session_state:
     tab1, tab2, tab3 = st.tabs(["📈 Analytics Kurir", "🔍 Untraceable Check", "📋 Data Preview"])
     
     with tab1:
-        # Layout Header dengan Judul di Kiri dan Dropdown Toolbar di Kanan Atas Tabel
         col_title, col_toolbar = st.columns([2.3, 1.7])
         with col_title:
             st.markdown("### Analisis Keterlambatan per Kurir (Status Manifest Late)")
@@ -911,7 +910,7 @@ if 'processed_result' in st.session_state:
             view_mode = st.selectbox(
                 "Pilih Tampilan",
                 ["Statistik Persentase (%)", "Tabel Statistik Keterlambatan"],
-                index=0,  # Default preview diset ke Statistik Persentase (%)
+                index=0,
                 label_visibility="collapsed"
             )
         
@@ -963,7 +962,7 @@ if 'processed_result' in st.session_state:
                             st.markdown(f"""
                             <div style="margin-bottom: 12px;">
                                 <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 600; color: #1F2937; margin-bottom: 4px;">
-                                    <span>{courier_name} ({courier_total} Unit)</span>
+                                    <span>{courier_name} ({courier_total} Order)</span>
                                     <span style="color: #2563EB;">{pct:.2f}%</span>
                                 </div>
                                 <div style="background-color: #E5E7EB; border-radius: 6px; height: 10px; width: 100%; overflow: hidden;">
