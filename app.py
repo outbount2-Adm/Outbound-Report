@@ -313,7 +313,13 @@ with st.container():
 
                 col_ext_order = next((c for c in res.columns if 'ext. order#' in c.lower()), None)
                 if col_ext_order:
-                    res['ERP Document Number'] = res[col_ext_order].astype(str).str[:14]
+                    erp_raw = res[col_ext_order].astype(str).str.strip()
+                    # Kondisi ERP Document Number: jika berawalan CKSQ, ambil left 11
+                    res['ERP Document Number'] = np.where(
+                        erp_raw.str.startswith("CKSQ", na=False),
+                        erp_raw.str[:11],
+                        erp_raw.str[:14]
+                    )
                 else:
                     res['ERP Document Number'] = np.nan
                 
@@ -323,11 +329,12 @@ with st.container():
                 res['Tracking#/PRO#'] = res[col_track].apply(lambda x: str(x).strip() if pd.notna(x) and str(x).strip() != 'nan' else '') if col_track else ''
                 res['PlatformOrder'] = res[col_ref].apply(lambda x: str(x).strip() if pd.notna(x) and str(x).strip() != 'nan' else '') if col_ref else ''
 
-                # Pengecekan Kolom Resi Manual HO
+                # Pengecekan Kolom Resi Manual HO & Pengisian ke Tracking#/PRO# (Sesuai Permintaan)
                 col_resi_manual = next((c for c in df_ho.columns if 'resi manual' in c.lower() or 'manual resi' in c.lower()), None)
                 if col_resi_manual:
                     resi_manual_vals = df_ho[col_resi_manual].apply(lambda x: str(x).strip() if pd.notna(x) and str(x).strip() != 'nan' else '')
-                    res['PlatformOrder'] = np.where(resi_manual_vals != '', resi_manual_vals, res['PlatformOrder'])
+                    # Jika kolom Resi Manual tidak sama dengan kosong, masukkan ke Tracking#/PRO#
+                    res['Tracking#/PRO#'] = np.where(resi_manual_vals != '', resi_manual_vals, res['Tracking#/PRO#'])
 
                 col_sales = next((c for c in res.columns if 'sales channel' in c.lower()), None)
                 res['Platform'] = res[col_sales] if col_sales else np.nan
@@ -654,7 +661,7 @@ with st.container():
                     'Platform', 'Brand', 'Brand 2', 'Admin', 'Load', 'Kurir', 'Loader', 'Tanggal Handover', 
                     'Wave ID', 'Created Time', 'Ordered Date', 'Picking Task Created Time', 
                     'pickCompletedTime - Released Date Pack', 'Packing Complete', 'Shipped Date', 'Handover Date', 
-                    'End Ship Date', 'Packing to Shipped Date', 'Packing to Handover', 'Shipped Date to Handover', 
+                    'End Ship Date', 'Packing to Shpped Date', 'Packing to Handover', 'Shipped Date to Handover', 
                     'End Ship Date to Shpped Date', 'Kota', 'Provinsi', 'Status', 'Payment Menthood', 
                     'total order amount', 'Dokumen', 'Attachment', 'Times Proses Kurir', 'Times Proses Kurir to Shpped Date', 
                     'Status Manifest', 'Status Late', 'Remark Late', 'Pay-Created', 'Created-Released', 'Released-Pick', 
@@ -828,7 +835,7 @@ with st.container():
                     val_avg_shipped = get_avg_time_str(final_df['Packing to Shipped Date']) if 'Packing to Shipped Date' in final_df.columns else "0:00:00"
                     val_avg_handover = get_avg_time_str(final_df['Shipped Date to Handover']) if 'Shipped Date to Handover' in final_df.columns else "0:00:00"
 
-                    # --- EVALUASI KONDISI KATEGORI (DENGAN TAMBAHAN ATURAN PLATFORM OTHER & BRAND 2) ---
+                    # --- EVALUASI KONDISI KATEGORI ---
                     def lookup_kondisi_rule(row):
                         b1 = str(row.get('Brand', '')).strip().upper()
                         b2 = str(row.get('Brand 2', '')).strip().upper()
@@ -836,18 +843,15 @@ with st.container():
                         
                         b_combined = (b1 + " " + b2).replace("'", "").replace(" ", "")
                         
-                        # Aturan Lain (Other)
                         if 'WEBSTORE' in p and 'ACEKID' in b_combined:
                             return 'other'
                         if b1 == 'SK' or b2 == 'SK':
                             return 'other'
                             
-                        # Tambahan Aturan Baru: Jika Platform bernilai 'OTHER' dan Brand 2 adalah Dojako, Firda, Mama's Choice, atau Noura -> jc_fulfilment
                         if p == 'OTHER':
                             if any(x in b2 for x in ['DOJAKO', 'FIRDA', 'MAMASCHOICE', 'NOURA']):
                                 return 'jc_fulfilment'
 
-                        # Aturan Mutlak Fulfillment Utama
                         fulfilment_brands = ['DOJAKO', 'FIRDA', 'NOURA', 'MAMASCHOICE']
                         for fb in fulfilment_brands:
                             if fb in b_combined:
