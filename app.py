@@ -915,6 +915,7 @@ if 'processed_result' in st.session_state:
                 chart_df = late_df_web.groupby(['Kurir', 'Late Proses By']).size().reset_index(name='Qty')
                 chart_df = chart_df.sort_values(by='Qty', ascending=False)
                 
+                # Base chart untuk Bar (batang grafik dengan stacking dari nol)
                 base = alt.Chart(chart_df).encode(
                     y=alt.Y('Kurir:N', sort='-x', title='Kurir / Ekspedisi', axis=alt.Axis(labelLimit=200, titleFontWeight=600)),
                     x=alt.X('Qty:Q', stack='zero', title='Jumlah Order Terlambat (Unit)', axis=alt.Axis(grid=True, gridColor='#F1F5F9', domainColor='#E2E8F0')),
@@ -928,15 +929,17 @@ if 'processed_result' in st.session_state:
                 
                 bars = base.mark_bar(cornerRadiusTopRight=6, cornerRadiusBottomRight=6, height=24, opacity=0.9)
                 
-                # Label teks qty rata tengah di dalam setiap segmen bar berwarna dengan font hitam tebal (bold)
-                text = base.mark_text(
+                # Text layer terpisah dengan stack='center' agar angka pas di tengah segmen warna dan berwarna HITAM TEBAL
+                text = alt.Chart(chart_df).encode(
+                    y=alt.Y('Kurir:N', sort='-x'),
+                    x=alt.X('Qty:Q', stack='center'),
+                    text=alt.Text('Qty:Q', format=',')
+                ).mark_text(
                     align='center',
                     baseline='middle',
                     fontWeight='bold',
-                    fontSize=12,
+                    fontSize=11,
                     color='black'
-                ).encode(
-                    text=alt.Text('Qty:Q', format=',')
                 )
                 
                 chart = (bars + text).properties(height=420, padding={'left': 10, 'right': 10, 'top': 10, 'bottom': 10}).interactive()
