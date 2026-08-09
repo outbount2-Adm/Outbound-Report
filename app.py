@@ -917,7 +917,6 @@ if 'processed_result' in st.session_state:
                 chart_trend = trend_df.groupby(trend_df['Parsed_Date'].dt.date).size().reset_index(name='Qty')
                 chart_trend['Formatted_Date'] = pd.to_datetime(chart_trend['Parsed_Date']).dt.strftime('%m.%d')
                 
-                # Grafik Area + Line dengan titik dan gradasi biru menyerupai referensi
                 base = alt.Chart(chart_trend).encode(
                     x=alt.X('Formatted_Date:N', title='', axis=alt.Axis(labelAngle=0, tickColor='#E2E8F0', domainColor='#E2E8F0')),
                     y=alt.Y('Qty:Q', title='', axis=alt.Axis(grid=True, gridColor='#F1F5F9', domainColor='transparent'))
@@ -925,12 +924,8 @@ if 'processed_result' in st.session_state:
                 
                 area = base.mark_area(
                     line={'color': '#2563EB', 'strokeWidth': 2.5},
-                    color=alt.Gradient(
-                        gradient='linear',
-                        stops=[alt.GradientStop(color='#2563EB', opacity=0.45),
-                               alt.GradientStop(color='#2563EB', opacity=0.0)],
-                        x1=1, y1=1, x2=1, y2=0
-                    ),
+                    color='#2563EB',
+                    opacity=0.3,
                     interpolate='monotone'
                 )
                 
