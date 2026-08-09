@@ -847,7 +847,7 @@ if 'processed_result' in st.session_state:
                 chart_df = late_df_web.groupby(['Kurir', 'Late Proses By']).size().reset_index(name='Qty')
                 chart_df = chart_df.sort_values(by='Qty', ascending=False)
                 
-                # Buat horizontal bar chart dengan Altair (diurutkan dari terbanyak ke terdikit, teks horizontal, muncul data label)
+                # Grafik bar chart horizontal dengan posisi angka pas di tengah segmen (besar & bold)
                 base = alt.Chart(chart_df).encode(
                     y=alt.Y('Kurir:N', sort='-x', title='Kurir'),
                     x=alt.X('Qty:Q', title='Jumlah Order (Qty)'),
@@ -855,10 +855,15 @@ if 'processed_result' in st.session_state:
                 )
                 bars = base.mark_bar()
                 text = base.mark_text(
-                    align='left',
+                    align='center',
                     baseline='middle',
-                    dx=3
-                ).encode(text='Qty:Q')
+                    fontSize=13,
+                    fontWeight='bold',
+                    color='black'
+                ).encode(
+                    x=alt.X('Qty:Q', stack='center'),
+                    text='Qty:Q'
+                )
                 
                 chart = (bars + text).properties(height=400)
                 st.altair_chart(chart, use_container_width=True)
