@@ -141,7 +141,6 @@ custom_css = """
     .viewerBadge { visibility: hidden !important; display: none !important; }
     iframe[title="streamlitApp"] { display: none !important; }
     
-    /* Paksa elemen fixed di pojok kanan bawah agar hilang */
     div:has(> iframe), footer + div, .reportview-container .main footer, div[class*="viewerBadge"] {
         display: none !important;
         visibility: hidden !important;
@@ -947,7 +946,7 @@ if 'processed_result' in st.session_state:
 
                 st.markdown("---")
 
-                # 2. TABEL STATISTIK / CROSS-TABULATION
+                # 2. TABEL STATISTIK / CROSS-TABULATION (DENGAN PENGAMAN KONFLIK KOLOM INDEX)
                 st.markdown("**Tabel Statistik Keterlambatan (Kurir vs Penyebab Keterlambatan):**")
                 
                 stat_df = pd.pivot_table(
@@ -971,7 +970,16 @@ if 'processed_result' in st.session_state:
                     stat_df = stat_df.drop(columns=[''])
                 
                 stat_df['Total Late'] = stat_df.sum(axis=1)
-                stat_df = stat_df.sort_values(by='Total Late', ascending=False).reset_index()
+                
+                # Pengaman untuk membersihkan kolom 'index' agar tidak terjadi ValueError
+                if 'index' in stat_df.columns:
+                    stat_df = stat_df.drop(columns=['index'])
+                
+                stat_df = stat_df.reset_index()
+                if 'index' in stat_df.columns and 'Kurir' in stat_df.columns:
+                    stat_df = stat_df.drop(columns=['index'], errors='ignore')
+
+                stat_df = stat_df.sort_values(by='Total Late', ascending=False).reset_index(drop=True)
                 
                 st.dataframe(stat_df, use_container_width=True, hide_index=True)
             else:
