@@ -19,7 +19,7 @@ st.set_page_config(
 current_date_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 # ==========================================
-# 2. CSS KUSTOM (Perbaikan Tampilan Sidebar & Input Officer)
+# 2. CSS KUSTOM
 # ==========================================
 custom_css = """
 <style>
@@ -38,21 +38,12 @@ custom_css = """
         background-color: #001529 !important;
         color: white !important;
     }
-    
-    /* Perbaikan agar teks navigasi sidebar terlihat jelas */
     [data-testid="stSidebar"] .sidebar-item {
         color: #A6ADB4 !important;
         padding: 10px;
         margin-bottom: 5px;
         cursor: pointer;
     }
-    
-    /* Memastikan Label Widget di Sidebar (Termasuk Input Officer) Terlihat Jelas */
-    [data-testid="stSidebar"] label {
-        color: #FFFFFF !important;
-        font-weight: 500;
-    }
-
     .sidebar-active {
         background-color: #1890FF !important;
         color: white !important;
@@ -138,7 +129,6 @@ custom_css = """
         display: flex;
         align-items: center;
     }
-    .result-success { background-color: #F0FDF4; color: #166534; border: 1px solid #BBF7D0; }
     .result-warning { background-color: #FFFBEB; color: #92400E; border: 1px solid #FDE68A; }
 
     #MainMenu, footer, header, .stDeployButton { visibility: hidden; display: none; }
@@ -161,17 +151,7 @@ with st.sidebar:
     st.markdown('<div class="sidebar-item">🏠 Storage</div>', unsafe_allow_html=True)
     
     st.divider()
-    
-    st.markdown('### ⚙️ Konfigurasi Officer')
-    if 'saved_admin' not in st.session_state:
-        st.session_state['saved_admin'] = "Admin Logistik"
-    
-    admin_input = st.text_input("Input Officer", value=st.session_state['saved_admin'])
-    if st.button("Update Nama ✍️", use_container_width=True):
-        st.session_state['saved_admin'] = admin_input
-        st.rerun()
-        
-    if st.button("🗑️ Reset Data", use_container_width=True, type="secondary"):
+    if st.button("🗑️ Reset Data & Cache", use_container_width=True, type="secondary"):
         if 'file_uploader_key' not in st.session_state: st.session_state['file_uploader_key'] = 0
         st.session_state['file_uploader_key'] += 1
         if 'processed_result' in st.session_state: del st.session_state['processed_result']
@@ -180,7 +160,7 @@ with st.sidebar:
         st.rerun()
 
 # ==========================================
-# 4. TOP BAR & DATA CENTER (UPLOAD)
+# 4. TOP BAR & DATA CENTER (UPLOAD + INPUT OFFICER)
 # ==========================================
 st.markdown(f"""
     <div class="top-bar">
@@ -191,7 +171,23 @@ st.markdown(f"""
 
 with st.container():
     st.markdown('<div class="section-container">', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">📁 Data Center (Upload Files)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">📁 Data Center & Konfigurasi Officer</div>', unsafe_allow_html=True)
+    
+    # Input Officer ditampilkan langsung di halaman utama agar jelas terlihat
+    if 'saved_admin' not in st.session_state:
+        st.session_state['saved_admin'] = "Admin Logistik"
+    
+    col_off1, col_off2 = st.columns([4, 1])
+    with col_off1:
+        admin_input = st.text_input("✍️ Input Officer Name", value=st.session_state['saved_admin'])
+    with col_off2:
+        st.write("")
+        if st.button("Update Nama", use_container_width=True, type="secondary"):
+            st.session_state['saved_admin'] = admin_input
+            st.success("Nama diperbarui!")
+            st.rerun()
+
+    st.divider()
     st.markdown('<div style="color: #475569; font-size: 14px; margin-bottom: 15px;">Seret dan lepas file sumber Anda di bawah ini untuk memulai pemrosesan otomatis.</div>', unsafe_allow_html=True)
 
     if 'file_uploader_key' not in st.session_state:
@@ -642,7 +638,7 @@ with st.container():
                         worksheet_wms.set_column(col_num, col_num, max_len + 4, cell_format_center)
 
                     # ==========================================
-                    # SHEET DB (DASHBOARD SUMMARY) - Rata Tengah & Auto-Fit
+                    # SHEET DB (DASHBOARD SUMMARY)
                     # ==========================================
                     worksheet_db = workbook.add_worksheet('DB')
                     header_format_db = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1, 'align': 'center', 'valign': 'vcenter'})
@@ -702,7 +698,6 @@ with st.container():
                             grouped_late.insert(0, 'No', range(1, len(grouped_late) + 1))
                             df_late_manifest = grouped_late
 
-                    # --- ASCENDING ORDER PADA AVG TIMES PROSES KURIR ---
                     df_kurir_manifest = pd.DataFrame()
                     if 'Kurir' in final_df.columns and 'Times Proses Kurir to Shpped Date' in final_df.columns:
                         temp_k = final_df[['Kurir', 'Times Proses Kurir to Shpped Date']].copy()
@@ -934,6 +929,7 @@ if 'processed_result' in st.session_state:
                     y=alt.Y('Kurir:N', sort=sort_order, title='Kurir / Ekspedisi', axis=alt.Axis(labelLimit=200, titleFontWeight=600))
                 )
                 
+                # Sumbu X (axis=None) dihilangkan agar chart otomatis menyesuaikan panjang batang tanpa patokan angka sumbu bawah
                 bars = base.mark_bar(height=28, opacity=0.9).encode(
                     x=alt.X('Qty:Q', stack='zero', axis=None),
                     color=alt.Color('Late Proses By:N', scale=alt.Scale(scheme='tableau10'), legend=alt.Legend(title="Penyebab Keterlambatan", orient="bottom", titleFontWeight=600)),
