@@ -7,10 +7,10 @@ import altair as alt
 from io import BytesIO
 
 # ==========================================
-# 1. KONFIGURASI HALAMAN (QianYi Style)
+# 1. KONFIGURASI HALAMAN 
 # ==========================================
 st.set_page_config(
-    page_title="QianYi Logistics Dashboard", 
+    page_title="Outbound Logistic Dashboard",  # <--- PERBAIKAN TITLE APLIKASI
     layout="wide", 
     page_icon="📦", 
     initial_sidebar_state="expanded"
@@ -19,7 +19,7 @@ st.set_page_config(
 current_date_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 # ==========================================
-# 2. CSS KUSTOM (QianYi Design System + Modern Cards)
+# 2. CSS KUSTOM (Design System + Modern Cards)
 # ==========================================
 custom_css = """
 <style>
@@ -138,10 +138,10 @@ custom_css = """
 st.markdown(custom_css, unsafe_allow_html=True)
 
 # ==========================================
-# 3. SIDEBAR NAVIGATION (QianYi Style)
+# 3. SIDEBAR NAVIGATION
 # ==========================================
 with st.sidebar:
-    st.markdown('<div style="font-size: 22px; font-weight: 800; color: white; margin-bottom: 25px; padding: 0 5px;">📦 QianYi Logis</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-size: 20px; font-weight: 800; color: white; margin-bottom: 25px; padding: 0 5px;">📦 Outbound Logis</div>', unsafe_allow_html=True)
     
     st.markdown('<div class="sidebar-active">📊 Dashboard</div>', unsafe_allow_html=True)
     st.markdown('<div class="sidebar-item">📝 Task Management</div>', unsafe_allow_html=True)
@@ -912,27 +912,33 @@ if 'processed_result' in st.session_state:
             late_df_web = res_df[res_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late'].copy()
             
             if not late_df_web.empty:
+                # 1. Hitung total Qty per segment
                 chart_df = late_df_web.groupby(['Kurir', 'Late Proses By']).size().reset_index(name='Qty')
-                
-                # Memastikan tidak ada qty 0 yang merusak stacking bar
                 chart_df = chart_df[chart_df['Qty'] > 0]
                 
-                # Mengurutkan y-axis secara eksplisit berdasarkan total qty agar konsisten
+                # 2. Urutkan berdasarkan Kurir dan Alphabet Penyebab
+                chart_df = chart_df.sort_values(by=['Kurir', 'Late Proses By'])
+                
+                # 3. Kalkulasi Kumulatif & Midpoint (titik tengah X) di Pandas 
+                chart_df['Qty_cumu'] = chart_df.groupby('Kurir')['Qty'].cumsum()
+                chart_df['Qty_mid'] = chart_df['Qty_cumu'] - (chart_df['Qty'] / 2)
+                
+                # Pengaturan urutan batang utama
                 sort_order = alt.EncodingSortField(field='Qty', op='sum', order='descending')
                 
-                # Base Chart
+                # Layer dasar untuk sumbu Y
                 base = alt.Chart(chart_df).encode(
                     y=alt.Y('Kurir:N', sort=sort_order, title='Kurir / Ekspedisi', axis=alt.Axis(labelLimit=200, titleFontWeight=600))
                 )
                 
-                # Layer Bars
+                # Layer Batang warna bertumpuk tanpa sumbu X (axis=None) <-- PERBAIKAN DI SINI
                 bars = base.mark_bar(height=28, opacity=0.9).encode(
-                    x=alt.X('Qty:Q', stack='zero', title='Jumlah Order Terlambat (Unit)', axis=alt.Axis(grid=True, gridColor='#F1F5F9')),
+                    x=alt.X('Qty:Q', stack='zero', axis=None), # Axis dihilangkan
                     color=alt.Color('Late Proses By:N', scale=alt.Scale(scheme='tableau10'), legend=alt.Legend(title="Penyebab Keterlambatan", orient="bottom", titleFontWeight=600)),
                     tooltip=['Kurir:N', 'Late Proses By:N', 'Qty:Q']
                 )
                 
-                # Layer Text (Kunci perbaikan: tambahkan 'detail' agar susunan teks dan warna selaras)
+                # Layer Teks Hitam & Bold tanpa sumbu X (axis=None) <-- PERBAIKAN DI SINI
                 text = base.mark_text(
                     align='center', 
                     baseline='middle', 
@@ -940,8 +946,7 @@ if 'processed_result' in st.session_state:
                     fontSize=12, 
                     color='black'
                 ).encode(
-                    x=alt.X('Qty:Q', stack='center'),
-                    detail='Late Proses By:N',  # <--- INI ADALAH KUNCI AGAR BAR TIDAK HILANG
+                    x=alt.X('Qty_mid:Q', axis=None), # Axis dihilangkan
                     text=alt.Text('Qty:Q', format=',')
                 )
                 
