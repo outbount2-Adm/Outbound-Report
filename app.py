@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 import traceback
@@ -19,7 +20,36 @@ st.set_page_config(
 current_date_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 # ==========================================
-# 2. CSS KUSTOM (Menghilangkan Sidebar & Badge Pojok Kanan Bawah Secara Total)
+# 2. SKRIP JAVASCRIPT PEMBERSIH PAKSA (BADGE & TOOLBAR)
+# ==========================================
+components.html(
+    """
+    <script>
+        const observer = new MutationObserver((mutations, obs) => {
+            const doc = window.parent.document;
+            const badge = doc.querySelector('.viewerBadge');
+            const toolbar = doc.querySelector('[data-testid="stToolbar"]');
+            const deployButton = doc.querySelector('.stDeployButton');
+            const statusWidget = doc.querySelector('[data-testid="stStatusWidget"]');
+            
+            if (badge) badge.remove();
+            if (toolbar) toolbar.remove();
+            if (deployButton) deployButton.remove();
+            if (statusWidget) statusWidget.remove();
+        });
+        
+        observer.observe(window.parent.document, {
+            childList: true,
+            subtree: true
+        });
+    </script>
+    """,
+    height=0,
+    width=0
+)
+
+# ==========================================
+# 3. CSS KUSTOM (Menghilangkan Sidebar & Badge Pojok Kanan Bawah)
 # ==========================================
 custom_css = """
 <style>
@@ -150,7 +180,7 @@ custom_css = """
 st.markdown(custom_css, unsafe_allow_html=True)
 
 # ==========================================
-# 3. TOP BAR & DATA CENTER (UPLOAD + INPUT OFFICER)
+# 4. TOP BAR & DATA CENTER (UPLOAD + INPUT OFFICER)
 # ==========================================
 st.markdown(f"""
     <div class="top-bar">
@@ -210,7 +240,7 @@ with st.container():
         )
 
     # ==========================================
-    # 4. LOGIKA UTAMA PEMPROSESAN DATA
+    # 5. LOGIKA UTAMA PEMPROSESAN DATA
     # ==========================================
     if execute_clicked:
         if uploaded_files:
@@ -312,7 +342,7 @@ with st.container():
                 erp_empty = res['ERP Document Number'].isna() | (res['ERP Document Number'].astype(str).str.strip() == '') | (res['ERP Document Number'].astype(str).str.lower() == 'nan')
                 res['ERP Document Number'] = np.where(erp_empty & is_platform_other, res['WMS Order'], res['ERP Document Number'])
 
-                track_empty = res['Tracking#/PRO#'].isna() | (res['Tracking#/PRO#'].astype(str).str.strip() == '') | (res['Tracking#/PRO#'].astype(str).str.lower() == 'nan')
+                track_empty = res['Tracking#/PRO#'].isna() | (res['Tracking#/PRO#'].astype(str).str.strip() == '') | (res['Tracking#/PRO#'].astype(str).str.strip().str.lower() == 'nan')
                 res['Tracking#/PRO#'] = np.where(track_empty & is_platform_other, res['WMS Order'], res['Tracking#/PRO#'])
 
                 platord_empty = res['PlatformOrder'].isna() | (res['PlatformOrder'].astype(str).str.strip() == '') | (res['PlatformOrder'].astype(str).str.lower() == 'nan')
@@ -860,7 +890,7 @@ with st.container():
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
-# 5. TAMPILAN DASHBOARD & PREVIEW
+# 6. TAMPILAN DASHBOARD & PREVIEW
 # ==========================================
 if 'processed_result' in st.session_state:
     res_df = st.session_state['processed_result']
@@ -946,7 +976,7 @@ if 'processed_result' in st.session_state:
 
                 st.markdown("---")
 
-                # 2. TABEL STATISTIK / CROSS-TABULATION (DENGAN PENGAMAN KONFLIK KOLOM INDEX)
+                # 2. TABEL STATISTIK / CROSS-TABULATION
                 st.markdown("**Tabel Statistik Keterlambatan (Kurir vs Penyebab Keterlambatan):**")
                 
                 stat_df = pd.pivot_table(
