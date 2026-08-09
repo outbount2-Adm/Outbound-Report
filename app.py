@@ -698,12 +698,21 @@ if files_ready:
                 worksheet_db.set_column(22, 22, 0.5, black_divider)
                 write_custom_table_autofit(df_late_manifest, 1, 23)
 
+            # Hitung metrik keterlambatan secara dinamis
+            val_total_late = int((final_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late').sum())
+            mask_late = final_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late'
+            val_avg_late_sec = max_sec[mask_late.values].mean() if val_total_late > 0 else 0
+            
+            avg_late_str = f"{int(val_avg_late_sec)//3600}:{(int(val_avg_late_sec)%3600)//60:02d}:{int(val_avg_late_sec)%60:02d}"
+
             st.session_state['excel_data'] = output.getvalue()
             st.session_state['metrics'] = {
                 "Delivery Rate": f"{val_delivery_rate}%",
                 "Delivered": f"{val_delivered:,}",
                 "Target": f"{val_target:,}",
-                "Pending": f"{val_pending:,}"
+                "Pending": f"{val_pending:,}",
+                "Total Late": f"{val_total_late:,}",
+                "Avg Delay": avg_late_str
             }
             update_progress(100, "Selesai!")
             st.toast("Data berhasil diproses!", icon="🚀")
@@ -720,18 +729,42 @@ if files_ready:
 if 'processed_result' in st.session_state:
     res_df = st.session_state['processed_result']
     
-    # Quick Metrics
+    # Quick Metrics - Enhanced with Late Stats
     if 'metrics' in st.session_state:
         m = st.session_state['metrics']
+        
+        # Row 1: General Stats
         col_m1, col_m2, col_m3, col_m4 = st.columns(4)
         with col_m1:
-            st.markdown(f'<div class="metric-card"><div class="metric-label">Delivery Rate</div><div class="metric-value">{m["Delivery Rate"]}</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="metric-card"><div class="metric-label">📈 Delivery Rate</div><div class="metric-value">{m["Delivery Rate"]}</div></div>', unsafe_allow_html=True)
         with col_m2:
-            st.markdown(f'<div class="metric-card"><div class="metric-label">Delivered</div><div class="metric-value">{m["Delivered"]}</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="metric-card"><div class="metric-label">📦 Total Delivered</div><div class="metric-value">{m["Delivered"]}</div></div>', unsafe_allow_html=True)
         with col_m3:
-            st.markdown(f'<div class="metric-card"><div class="metric-label">Target</div><div class="metric-value">{m["Target"]}</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="metric-card"><div class="metric-label">🎯 Target Order</div><div class="metric-value">{m["Target"]}</div></div>', unsafe_allow_html=True)
         with col_m4:
-            st.markdown(f'<div class="metric-card"><div class="metric-label">Pending</div><div class="metric-value">{m["Pending"]}</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="metric-card"><div class="metric-label">⏳ Pending Order</div><div class="metric-value">{m["Pending"]}</div></div>', unsafe_allow_html=True)
+        
+        st.write("") # Spacer
+        
+        # Row 2: Late Stats (High Emphasis)
+        col_l1, col_l2, col_l3 = st.columns([1, 1, 2])
+        with col_l1:
+            st.markdown(f"""
+                <div class="metric-card" style="border-left: 5px solid #EF4444;">
+                    <div class="metric-label" style="color: #EF4444;">🚨 Total Late</div>
+                    <div class="metric-value" style="color: #B91C1C;">{m["Total Late"]}</div>
+                </div>
+            """, unsafe_allow_html=True)
+        with col_l2:
+            st.markdown(f"""
+                <div class="metric-card" style="border-left: 5px solid #F59E0B;">
+                    <div class="metric-label" style="color: #F59E0B;">⏱️ Avg Delay Time</div>
+                    <div class="metric-value" style="color: #B45309;">{m["Avg Delay"]}</div>
+                </div>
+            """, unsafe_allow_html=True)
+        with col_l3:
+            # Info box for context
+            st.info(f"💡 **Info:** Rata-rata waktu keterlambatan dihitung dari durasi proses terlama pada setiap order yang berstatus 'Late'.")
     
     st.markdown('<div class="modern-card">', unsafe_allow_html=True)
     
@@ -744,14 +777,54 @@ if 'processed_result' in st.session_state:
             if not late_df_web.empty:
                 chart_df = late_df_web.groupby(['Kurir', 'Late Proses By']).size().reset_index(name='Qty')
                 chart_df = chart_df.sort_values(by='Qty', ascending=False)
+                # Peningkatan visualisasi grafik:
+                # 1. Menggunakan skema warna yang lebih profesional (set2)
+                # 2. Menambahkan tooltips untuk presisi data saat hover
+                # 3. Memperjelas label angka di ujung bar
                 base = alt.Chart(chart_df).encode(
-                    y=alt.Y('Kurir:N', sort='-x', title='Kurir'),
-                    x=alt.X('Qty:Q', title='Jumlah Order (Qty)'),
-                    color=alt.Color('Late Proses By:N', scale=alt.Scale(scheme='tableau10'), title='Late Proses By')
+                    y=alt.Y('Kurir:N', sort='-x', title='Kurir / Ekspedisi'),
+                    x=alt.X('Qty:Q', title='Jumlah Order (Unit)'),
+                    color=alt.Color('Late Proses By:N', 
+                                  scale=alt.Scale(scheme='set2'), 
+                                  legend=alt.Legend(title="Penyebab Keterlambatan", orient="bottom")),
+                    tooltip=['Kurir', 'Late Proses By', 'Qty']
                 )
-                bars = base.mark_bar(cornerRadiusTopRight=4, cornerRadiusBottomRight=4)
-                text = base.mark_text(align='left', dx=5, fontWeight='bold').encode(text='Qty:Q')
-                st.altair_chart((bars + text).properties(height=400), use_container_width=True)
+                
+                bars = base.mark_bar(
+                    cornerRadiusTopRight=6, 
+                    cornerRadiusBottomRight=6,
+                    height=20
+                )
+                
+                text = base.mark_text(
+                    align='left',
+                    baseline='middle',
+                    dx=5,
+                    fontWeight=600,
+                    fontSize=12,
+                    color='#1E293B'
+                ).encode(
+                    text=alt.Text('Qty:Q', format=',')
+                )
+                
+                chart = (bars + text).properties(
+                    height=alt.Step(40), # Memberikan ruang antar bar agar tidak rapat
+                    title=alt.TitleParams(
+                        text='Analisis Keterlambatan per Kurir',
+                        subtitle=['Menampilkan distribusi penyebab keterlambatan (Late) untuk setiap ekspedisi'],
+                        anchor='start',
+                        fontSize=16,
+                        fontWeight=700
+                    )
+                ).configure_view(
+                    strokeWidth=0
+                ).configure_axis(
+                    labelFontSize=11,
+                    titleFontSize=12,
+                    grid=False
+                )
+                
+                st.altair_chart(chart, use_container_width=True)
             else:
                 st.info("ℹ️ Tidak ada data dengan status manifest 'Late'.")
         
