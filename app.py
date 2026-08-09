@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import traceback
 import datetime
+import altair as alt
 from io import BytesIO
 
 # ==========================================
@@ -923,7 +924,43 @@ if 'processed_result' in st.session_state:
             late_df_web = res_df[res_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late'].copy()
             
             if not late_df_web.empty:
-                # Menampilkan Statistik Saja (Pivot Table / Cross-Tabulation Kurir dan Late Proses By)
+                # 1. TAMPILKAN CHART (GRAFIK BATANG)
+                chart_df = late_df_web.groupby(['Kurir', 'Late Proses By']).size().reset_index(name='Qty')
+                chart_df = chart_df[chart_df['Qty'] > 0]
+                chart_df = chart_df.sort_values(by=['Kurir', 'Late Proses By'])
+                
+                chart_df['Qty_cumu'] = chart_df.groupby('Kurir')['Qty'].cumsum()
+                chart_df['Qty_mid'] = chart_df['Qty_cumu'] - (chart_df['Qty'] / 2)
+                
+                sort_order = alt.EncodingSortField(field='Qty', op='sum', order='descending')
+                
+                base = alt.Chart(chart_df).encode(
+                    y=alt.Y('Kurir:N', sort=sort_order, title='Kurir / Ekspedisi', axis=alt.Axis(labelLimit=200, titleFontWeight=600))
+                )
+                
+                bars = base.mark_bar(height=28, opacity=0.9).encode(
+                    x=alt.X('Qty:Q', stack='zero', axis=None),
+                    color=alt.Color('Late Proses By:N', scale=alt.Scale(scheme='tableau10'), legend=alt.Legend(title="Penyebab Keterlambatan", orient="bottom", titleFontWeight=600)),
+                    tooltip=['Kurir:N', 'Late Proses By:N', 'Qty:Q']
+                )
+                
+                text = base.mark_text(
+                    align='center', 
+                    baseline='middle', 
+                    fontWeight='bold', 
+                    fontSize=12, 
+                    color='black'
+                ).encode(
+                    x=alt.X('Qty_mid:Q', axis=None),
+                    text=alt.Text('Qty:Q', format=',')
+                )
+                
+                chart = (bars + text).properties(height=420, padding={'left': 10, 'right': 10, 'top': 10, 'bottom': 10}).interactive()
+                st.altair_chart(chart, use_container_width=True)
+
+                st.markdown("---")
+
+                # 2. TAMPILKAN TABEL STATISTIK / CROSS-TABULATION
                 stat_df = pd.pivot_table(
                     late_df_web,
                     index='Kurir',
