@@ -900,46 +900,54 @@ if 'processed_result' in st.session_state:
         """, unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- TABS: ANALYTICS KURIR, UNTRACEABLE CHECK, DATA PREVIEW ---
+    # --- TABS: ANALYTICS KURIR / TREND, UNTRACEABLE CHECK, DATA PREVIEW ---
     st.markdown('<div class="section-container">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">📊 Analisis & Data Preview</div>', unsafe_allow_html=True)
     
-    tab1, tab2, tab3 = st.tabs(["📈 Analytics Kurir", "🔍 Untraceable Check", "📋 Data Preview"])
+    tab1, tab2, tab3 = st.tabs(["📈 Trend & Analytics", "🔍 Untraceable Check", "📋 Data Preview"])
     
     with tab1:
-        st.markdown("### Analisis Keterlambatan per Kurir (Status Manifest Late)")
-        if 'Status Manifest' in res_df.columns and 'Late Proses By' in res_df.columns and 'Kurir' in res_df.columns:
-            late_df_web = res_df[res_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late'].copy()
+        st.markdown("### Grafik Tren Volume Order per Tanggal")
+        if 'Tanggal Handover' in res_df.columns:
+            trend_df = res_df.copy()
+            trend_df['Parsed_Date'] = pd.to_datetime(trend_df['Tanggal Handover'], errors='coerce')
+            trend_df = trend_df.dropna(subset=['Parsed_Date'])
             
-            if not late_df_web.empty:
-                chart_df = late_df_web.groupby(['Kurir', 'Late Proses By']).size().reset_index(name='Qty')
-                chart_df = chart_df.sort_values(by='Qty', ascending=False)
+            if not trend_df.empty:
+                chart_trend = trend_df.groupby(trend_df['Parsed_Date'].dt.date).size().reset_index(name='Qty')
+                chart_trend['Formatted_Date'] = pd.to_datetime(chart_trend['Parsed_Date']).dt.strftime('%m.%d')
                 
-                base = alt.Chart(chart_df).encode(
-                    y=alt.Y('Kurir:N', sort='-x', title='Kurir / Ekspedisi'),
-                    x=alt.X('Qty:Q', stack='zero', title='Jumlah Order (Unit)'),
-                    color=alt.Color('Late Proses By:N', scale=alt.Scale(scheme='set2'), legend=alt.Legend(title="Penyebab Keterlambatan", orient="bottom")),
-                    tooltip=['Kurir', 'Late Proses By', 'Qty']
-                )
-                bars = base.mark_bar(cornerRadiusTopRight=4, cornerRadiusBottomRight=4, height=22)
-                
-                text = base.mark_text(
-                    align='center',
-                    baseline='middle',
-                    fontWeight='bold',
-                    fontSize=11,
-                    color='black'
-                ).encode(
-                    x=alt.X('Qty:Q', stack='center'),
-                    text=alt.Text('Qty:Q', format=',')
+                # Grafik Area + Line dengan titik dan gradasi biru menyerupai referensi
+                base = alt.Chart(chart_trend).encode(
+                    x=alt.X('Formatted_Date:N', title='', axis=alt.Axis(labelAngle=0, tickColor='#E2E8F0', domainColor='#E2E8F0')),
+                    y=alt.Y('Qty:Q', title='', axis=alt.Axis(grid=True, gridColor='#F1F5F9', domainColor='transparent'))
                 )
                 
-                chart = (bars + text).properties(height=400)
+                area = base.mark_area(
+                    line={'color': '#2563EB', 'strokeWidth': 2.5},
+                    color=alt.Gradient(
+                        gradient='linear',
+                        stops=[alt.GradientStop(color='#2563EB', opacity=0.45),
+                               alt.GradientStop(color='#2563EB', opacity=0.0)],
+                        x1=1, y1=1, x2=1, y2=0
+                    ),
+                    interpolate='monotone'
+                )
+                
+                points = base.mark_point(
+                    filled=True,
+                    fill='white',
+                    color='#2563EB',
+                    size=80,
+                    strokeWidth=2.5
+                )
+                
+                chart = (area + points).properties(height=380).interactive()
                 st.altair_chart(chart, use_container_width=True)
             else:
-                st.info("ℹ️ Tidak ada data dengan status manifest 'Late'.")
+                st.info("ℹ️ Belum ada data tanggal handover yang valid untuk ditampilkan pada grafik tren.")
         else:
-            st.info("ℹ️ Kolom yang diperlukan untuk grafik tidak ditemukan.")
+            st.info("ℹ️ Kolom Tanggal Handover tidak ditemukan.")
 
     with tab2:
         if 'Master_Tracking' in res_df.columns:
