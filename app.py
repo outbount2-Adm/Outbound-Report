@@ -19,7 +19,7 @@ st.set_page_config(
 current_date = datetime.datetime.now().strftime("%B %d, %Y")
 
 # ==========================================
-# 2. CSS KUSTOM PROFESIONAL (Inter Font & Modern Slate Theme)
+# 2. CSS KUSTOM PROFESIONAL
 # ==========================================
 custom_css = """
 <style>
@@ -83,6 +83,11 @@ custom_css = """
         border-radius: 12px;
         border: 1px solid #E2E8F0;
         text-align: center;
+        transition: transform 0.2s;
+    }
+    .metric-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
     .metric-label {
         color: #64748B;
@@ -124,62 +129,29 @@ custom_css = """
         padding: 0.75rem 1.5rem !important;
     }
 
-    div[data-testid="stButton"] > button[kind="primary"]:hover {
-        background-color: #1D4ED8 !important;
-        box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);
-    }
-
-    /* Status Badges */
-    .badge {
-        padding: 0.25rem 0.75rem;
-        border-radius: 9999px;
-        font-size: 0.75rem;
-        font-weight: 600;
-    }
-    .badge-success { background-color: #DCFCE7; color: #166534; }
-    .badge-warning { background-color: #FEF3C7; color: #92400E; }
-    .badge-error { background-color: #FEE2E2; color: #991B1B; }
-
     /* Sidebar Styling */
     [data-testid="stSidebar"] {
         background-color: #F1F5F9;
         border-right: 1px solid #E2E8F0;
-    }
-    .sidebar-header {
-        font-weight: 700;
-        color: #1E293B;
-        margin-bottom: 1rem;
     }
 </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
 
 # ==========================================
-# 3. SIDEBAR - SETTINGS & INFO
+# 3. SIDEBAR - SETTINGS
 # ==========================================
 with st.sidebar:
-    st.markdown('<div class="sidebar-header">⚙️ Konfigurasi</div>', unsafe_allow_html=True)
-    
+    st.markdown('### ⚙️ Konfigurasi')
     if 'saved_admin' not in st.session_state:
         st.session_state['saved_admin'] = "Admin Logistik"
     
     admin_input = st.text_input("Nama Officer Aktif", value=st.session_state['saved_admin'])
     if st.button("Simpan Perubahan", use_container_width=True):
         st.session_state['saved_admin'] = admin_input
-        st.toast("Nama officer diperbarui!", icon="✅")
+        st.rerun()
     
     st.divider()
-    
-    st.markdown('<div class="sidebar-header">📖 Panduan Singkat</div>', unsafe_allow_html=True)
-    st.info("""
-    1. **Upload** file Master, Daily, HO, dan Order Summary.
-    2. Klik **Proses Data** untuk memulai.
-    3. **Review** hasil pada tabel preview.
-    4. **Download** laporan Excel yang sudah diformat.
-    """)
-    
-    st.divider()
-    
     if st.button("🗑️ Reset Semua Data", use_container_width=True, type="secondary"):
         if 'file_uploader_key' not in st.session_state: st.session_state['file_uploader_key'] = 0
         st.session_state['file_uploader_key'] += 1
@@ -188,7 +160,7 @@ with st.sidebar:
         st.rerun()
 
 # ==========================================
-# 4. MAIN CONTENT - HEADER
+# 4. HEADER
 # ==========================================
 col_h1, col_h2 = st.columns([2, 1])
 with col_h1:
@@ -197,7 +169,7 @@ with col_h1:
 with col_h2:
     st.markdown(f"""
         <div style="text-align: right; padding-top: 1rem;">
-            <span style="color: #64748B; font-size: 0.9rem;">Officer:</span><br>
+            <span style="color: #64748B; font-size: 0.9rem;">Officer Aktif:</span><br>
             <span style="color: #0F172A; font-weight: 700; font-size: 1.1rem;">{st.session_state['saved_admin']}</span>
         </div>
     """, unsafe_allow_html=True)
@@ -212,39 +184,33 @@ if 'file_uploader_key' not in st.session_state:
     st.session_state['file_uploader_key'] = 0
 
 uploaded_files = st.file_uploader(
-    "Seret dan lepas file sumber Anda (XLSX, CSV)", 
+    "Upload Area", 
     accept_multiple_files=True, 
     type=['xlsx', 'csv'],
     key=f"uploader_{st.session_state['file_uploader_key']}",
-    label_visibility="visible"
+    label_visibility="collapsed"
 )
 st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
-# 6. PROCESSING QUEUE
+# 6. PROCESSING (LOGIKA ASLI 100%)
 # ==========================================
 files_ready = len(uploaded_files) > 0
 if files_ready:
     st.markdown('<div class="modern-card">', unsafe_allow_html=True)
-    st.markdown('<h3>⚙️ Pemrosesan Data</h3>', unsafe_allow_html=True)
+    st.markdown('<h3>⚙️ Antrean Pemrosesan</h3>', unsafe_allow_html=True)
     
     execute_clicked = st.button(
-        "Mulai Proses Data 🚀", 
+        "Proses data sekarang 🚀", 
         type="primary", 
         use_container_width=True
     )
 
     if execute_clicked:
-        progress_container = st.empty()
-        progress_bar = st.progress(0)
-        
+        progress_bar = st.progress(0, text="Processing... (0%)")
         try:
-            def update_progress(val, text):
-                progress_bar.progress(val)
-                progress_container.markdown(f"**Status:** {text} ({val}%)")
-
-            update_progress(10, "Membaca file sumber...")
-            
+            # --- MULAI LOGIKA ASLI DARI appLastUpdate.py ---
+            progress_bar.progress(10, text="Processing... (Membaca file sumber) [10%]")
             dfs = {}
             master_store_db = {}
             master_carrier_db = {}
@@ -299,9 +265,7 @@ if files_ready:
             for key in ['op_log', 'pack_task', 'erp', 'daily_ho']:
                 if key not in dfs: dfs[key] = pd.DataFrame()
 
-            update_progress(35, "Mencocokkan baris & Merge data...")
-            
-            # --- START LOGIC AS IS ---
+            progress_bar.progress(35, text="Processing... (Mencocokkan baris & Merge data) [35%]")
             df_ho = dfs['ho_outbound'].copy()
             res = pd.DataFrame({'WMS Order': df_ho['WMS Order']})
             
@@ -353,7 +317,6 @@ if files_ready:
                 ev_col = df_op['Event'].iloc[:, 0] if isinstance(df_op['Event'], pd.DataFrame) else df_op['Event']
                 op_col = df_op['operator'].iloc[:, 0] if isinstance(df_op['operator'], pd.DataFrame) else df_op['operator']
                 wms_col = df_op['WMS Order#'].iloc[:, 0] if isinstance(df_op['WMS Order#'], pd.DataFrame) else df_op['WMS Order#']
-                
                 mask_staged = ev_col.astype(str).str.strip().str.lower() == 'staged'
                 df_staged = pd.DataFrame({'WMS Order#': wms_col[mask_staged], 'Staged User': op_col[mask_staged]})
                 df_staged = df_staged.drop_duplicates(subset=['WMS Order#'])
@@ -375,7 +338,6 @@ if files_ready:
 
             res['Admin'] = st.session_state['saved_admin']
             res['Load'] = 1
-            
             col_carrier_code = next((c for c in res.columns if 'carrier code' in c.lower() or 'carriercode' in c.lower()), None)
             if col_carrier_code:
                 res['Kurir'] = res[col_carrier_code].apply(lambda x: master_carrier_db.get(str(x).strip(), 'Unknown'))
@@ -383,10 +345,9 @@ if files_ready:
                 res['Kurir'] = 'Unknown'
 
             res['Loader'] = st.session_state['saved_admin']
-            res['Tanggal Handover'] = current_date
+            res['Tanggal Handover'] = datetime.datetime.now().strftime("%B %d, %Y")
             
-            update_progress(65, "Menghitung durasi & Status...")
-
+            progress_bar.progress(65, text="Processing... (Menghitung durasi & Status) [65%]")
             for c in ['Created Time', 'Ordered Date', 'Picking Task Created Time', 'pickCompletedTime - Released Date Pack', 'Packing Complete', 'Shipped Date', 'Handover Date', 'End Ship Date']:
                 col_found = next((col for col in res.columns if col.lower() == c.lower()), None)
                 if col_found: res[c] = res[col_found]
@@ -410,8 +371,7 @@ if files_ready:
                 if col_found: res[col_name] = res[col_found]
                 else: res[col_name] = np.nan
 
-            res['Dokumen'] = 'Sudah Ada'
-            res['Attachment'] = 'Sudah Ada'
+            res['Dokumen'] = 'Sudah Ada'; res['Attachment'] = 'Sudah Ada'
             res['Times Proses Kurir'] = calc_diff('Handover Date', 'Shipped Date')
             res['Times Proses Kurir to Shpped Date'] = calc_diff('Shipped Date', 'Handover Date')
 
@@ -419,7 +379,6 @@ if files_ready:
                 res['Status Manifest'] = np.where(res['Status'].astype(str).str.strip().str.lower() == 'shipped', 'Late', 'Normal')
             else:
                 res['Status Manifest'] = 'Normal'
-
             res['Status Late'] = np.where(res['Status Manifest'] == 'Late', 'Late', 'Normal')
             res['Remark Late'] = ""
 
@@ -430,8 +389,7 @@ if files_ready:
             res['Pack-Collect'] = calc_diff('Shipped Date', 'Packing Complete')
             res['Collect-Manifest'] = calc_diff('Handover Date', 'Shipped Date')
             res['Manifest-Endshipdate'] = calc_diff('End Ship Date', 'Handover Date')
-            res['Max'] = ""
-            res['System'] = ""
+            res['Max'] = ""; res['System'] = ""
 
             def get_safe_seconds(td_str_series):
                 sec_list = []
@@ -455,40 +413,17 @@ if files_ready:
             sec_ar = get_safe_seconds(res['Pack-Collect'])
             sec_as = get_safe_seconds(res['Collect-Manifest'])
             sec_at = get_safe_seconds(res['Manifest-Endshipdate'])
-
             max_sec = np.maximum.reduce([sec_an, sec_ao, sec_ap, sec_aq, sec_ar, sec_as, sec_at])
 
             res['Late Proses By'] = np.select(
-                [
-                    (max_sec > 0) & (max_sec == sec_an),
-                    (max_sec > 0) & (max_sec == sec_ao),
-                    (max_sec > 0) & (max_sec == sec_ap),
-                    (max_sec > 0) & (max_sec == sec_aq),
-                    (max_sec > 0) & (max_sec == sec_ar),
-                    (max_sec > 0) & (max_sec == sec_as),
-                ],
+                [(max_sec > 0) & (max_sec == sec_an), (max_sec > 0) & (max_sec == sec_ao), (max_sec > 0) & (max_sec == sec_ap), (max_sec > 0) & (max_sec == sec_aq), (max_sec > 0) & (max_sec == sec_ar), (max_sec > 0) & (max_sec == sec_as)],
                 ["System", "Admin", "Picker", "Packer", "Outbound", "Kurir"],
                 default=""
             )
 
-            update_progress(90, "Menyusun laporan akhir & Excel...")
-            
-            res['Admin '] = res['Admin']
-            res['Kurir '] = res['Kurir']
-
-            kolom_final = [
-                'WMS Order', 'ERP Document Number', 'Tracking#/PRO#', 'PlatformOrder', 'Staged User', 
-                'Platform', 'Brand', 'Brand 2', 'Admin', 'Load', 'Kurir', 'Loader', 'Tanggal Handover', 
-                'Wave ID', 'Created Time', 'Ordered Date', 'Picking Task Created Time', 
-                'pickCompletedTime - Released Date Pack', 'Packing Complete', 'Shipped Date', 'Handover Date', 
-                'End Ship Date', 'Packing to Shpped Date', 'Packing to Handover', 'Shipped Date to Handover', 
-                'End Ship Date to Shpped Date', 'Kota', 'Provinsi', 'Status', 'Payment Menthood', 
-                'total order amount', 'Dokumen', 'Attachment', 'Times Proses Kurir', 'Times Proses Kurir to Shpped Date', 
-                'Status Manifest', 'Status Late', 'Remark Late', 'Pay-Created', 'Created-Released', 'Released-Pick', 
-                'Pick-Pack', 'Pack-Collect', 'Collect-Manifest', 'Manifest-Endshipdate', 'Max', 'System', 'Admin ', 
-                'Picker', 'Packer', 'Outbound', 'Kurir ', 'Late Proses By'
-            ]
-            
+            progress_bar.progress(90, text="Processing... (Menyusun laporan akhir & Excel) [90%]")
+            res['Admin '] = res['Admin']; res['Kurir '] = res['Kurir']
+            kolom_final = ['WMS Order', 'ERP Document Number', 'Tracking#/PRO#', 'PlatformOrder', 'Staged User', 'Platform', 'Brand', 'Brand 2', 'Admin', 'Load', 'Kurir', 'Loader', 'Tanggal Handover', 'Wave ID', 'Created Time', 'Ordered Date', 'Picking Task Created Time', 'pickCompletedTime - Released Date Pack', 'Packing Complete', 'Shipped Date', 'Handover Date', 'End Ship Date', 'Packing to Shpped Date', 'Packing to Handover', 'Shipped Date to Handover', 'End Ship Date to Shpped Date', 'Kota', 'Provinsi', 'Status', 'Payment Menthood', 'total order amount', 'Dokumen', 'Attachment', 'Times Proses Kurir', 'Times Proses Kurir to Shpped Date', 'Status Manifest', 'Status Late', 'Remark Late', 'Pay-Created', 'Created-Released', 'Released-Pick', 'Pick-Pack', 'Pack-Collect', 'Collect-Manifest', 'Manifest-Endshipdate', 'Max', 'System', 'Admin ', 'Picker', 'Packer', 'Outbound', 'Kurir ', 'Late Proses By']
             for col in kolom_final:
                 if col not in res.columns: res[col] = np.nan
             final_df = res[kolom_final].copy()
@@ -513,16 +448,12 @@ if files_ready:
                 df_to_export = final_df.drop(columns=['Master_Tracking'], errors='ignore')
                 df_to_export.columns = [c.strip() if c in ['Admin ', 'Kurir '] else c for c in df_to_export.columns]
                 df_to_export.to_excel(writer, index=False, sheet_name='Laporan_WMS')
-                
-                workbook = writer.book
-                worksheet_wms = writer.sheets['Laporan_WMS']
+                workbook = writer.book; worksheet_wms = writer.sheets['Laporan_WMS']
                 format_header = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1, 'align': 'center', 'valign': 'vcenter'})
                 format_time = workbook.add_format({'num_format': 'hh:mm:ss', 'border': 1, 'align': 'center', 'valign': 'vcenter'})
                 cell_format_center = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
-                
                 col_idx_track = list(df_to_export.columns).index('Tracking#/PRO#')
                 col_idx_plat = list(df_to_export.columns).index('PlatformOrder')
-                
                 for row_num in range(len(df_to_export)):
                     val_track = str(df_to_export.iloc[row_num]['Tracking#/PRO#'])
                     val_plat = str(df_to_export.iloc[row_num]['PlatformOrder'])
@@ -538,7 +469,6 @@ if files_ready:
                     worksheet_wms.write_formula(row_num + 1, 52, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AS{excel_row}), FALSE))")
                     formula_late_by = f'=IF(AV{excel_row}, "System", IF(AW{excel_row}, "Admin", IF(AX{excel_row}, "Picker", IF(AY{excel_row}, "Packer", IF(AZ{excel_row}, "Outbound", IF(BA{excel_row}, "Kurir", ""))))))'
                     worksheet_wms.write_formula(row_num + 1, 53, formula_late_by)
-
                 for col_num, col_name in enumerate(df_to_export.columns):
                     worksheet_wms.write(0, col_num, col_name, format_header)
                     col_data_len = df_to_export.iloc[:, col_num].astype(str).str.len().max() if not df_to_export.empty else 0
@@ -551,11 +481,9 @@ if files_ready:
                 header_format_db = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1, 'align': 'center', 'valign': 'vcenter'})
                 cell_format_db = workbook.add_format({'border': 1, 'align': 'center', 'valign': 'vcenter'})
                 black_divider = workbook.add_format({'bg_color': '#000000'})
-                
                 df_brand = final_df['Brand'].value_counts().reset_index()
                 df_brand.columns = ['Brand', 'Delivered']
                 df_brand.insert(0, 'No', range(1, len(df_brand) + 1))
-                
                 df_os_open = dfs.get('order_summary_open', dfs.get('order_summary', pd.DataFrame()))
                 if not df_os_open.empty:
                     col_store_os = next((c for c in df_os_open.columns if 'store number' in c.lower() or c.lower() == 'storenumber' or 'store' in c.lower()), None)
@@ -574,26 +502,17 @@ if files_ready:
                         else: df_brand['Target'] = 0
                     else: df_brand['Target'] = 0
                 else: df_brand['Target'] = 0
-
                 df_kurir = final_df['Kurir'].value_counts().reset_index()
                 df_kurir.columns = ['Courier_Name', 'Total_Package']
-                df_kurir = df_kurir.head(5)
-                df_kurir.insert(0, 'No', range(1, len(df_kurir) + 1))
-                df_kurir['Ranking'] = range(1, len(df_kurir) + 1)
-                
+                df_kurir = df_kurir.head(5); df_kurir.insert(0, 'No', range(1, len(df_kurir) + 1)); df_kurir['Ranking'] = range(1, len(df_kurir) + 1)
                 df_status = final_df['Status Manifest'].replace('', 'Unknown').value_counts().reset_index()
-                df_status.columns = ['Status_Manifest', 'qty']
-                df_status.insert(0, 'No', range(1, len(df_status) + 1))
-
+                df_status.columns = ['Status_Manifest', 'qty']; df_status.insert(0, 'No', range(1, len(df_status) + 1))
                 df_late_manifest = pd.DataFrame(columns=['No', 'Late_Proses_By', 'qty'])
                 if 'Status Manifest' in final_df.columns and 'Late Proses By' in final_df.columns:
                     late_df = final_df[final_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late']
                     if not late_df.empty:
                         grouped_late = late_df['Late Proses By'].replace('', 'Unknown').fillna('Unknown').value_counts().reset_index()
-                        grouped_late.columns = ['Late_Proses_By', 'qty']
-                        grouped_late.insert(0, 'No', range(1, len(grouped_late) + 1))
-                        df_late_manifest = grouped_late
-
+                        grouped_late.columns = ['Late_Proses_By', 'qty']; grouped_late.insert(0, 'No', range(1, len(grouped_late) + 1)); df_late_manifest = grouped_late
                 df_kurir_manifest = pd.DataFrame()
                 if 'Kurir' in final_df.columns and 'Times Proses Kurir to Shpped Date' in final_df.columns:
                     temp_k = final_df[['Kurir', 'Times Proses Kurir to Shpped Date']].copy()
@@ -601,31 +520,21 @@ if files_ready:
                     grouped_k = temp_k.groupby('Kurir')['sec'].mean().reset_index()
                     grouped_k = grouped_k.sort_values(by='sec', ascending=True).reset_index(drop=True)
                     grouped_k['Avg_Process_Time'] = grouped_k['sec'].apply(lambda s: f"{int(s)//3600}:{(int(s)%3600)//60:02d}:{int(s)%60:02d}" if pd.notna(s) and s > 0 else "0:00:00")
-                    df_kurir_manifest = grouped_k[['Kurir', 'Avg_Process_Time']].copy()
-                    df_kurir_manifest.columns = ['Courier_Name', 'Avg_Times_Proses_Kurir_to_Shipped']
-                    df_kurir_manifest.insert(0, 'No', range(1, len(df_kurir_manifest) + 1))
-                else:
-                    df_kurir_manifest = pd.DataFrame(columns=['No', 'Courier_Name', 'Avg_Times_Proses_Kurir_to_Shipped'])
-
+                    df_kurir_manifest = grouped_k[['Kurir', 'Avg_Process_Time']].copy(); df_kurir_manifest.columns = ['Courier_Name', 'Avg_Times_Proses_Kurir_to_Shipped']; df_kurir_manifest.insert(0, 'No', range(1, len(df_kurir_manifest) + 1))
+                else: df_kurir_manifest = pd.DataFrame(columns=['No', 'Courier_Name', 'Avg_Times_Proses_Kurir_to_Shipped'])
                 val_target = len(df_os_open) if not df_os_open.empty else 0
-                val_delivered = len(final_df)
-                val_delivery_rate = round((val_delivered / val_target * 100), 2) if val_target > 0 else 0.0
-
-                raw_daily_df = dfs.get('daily_ho', pd.DataFrame()).copy()
-                val_kurir_instan = 0
+                val_delivered = len(final_df); val_delivery_rate = round((val_delivered / val_target * 100), 2) if val_target > 0 else 0.0
+                raw_daily_df = dfs.get('daily_ho', pd.DataFrame()).copy(); val_kurir_instan = 0
                 if not raw_daily_df.empty:
-                    cols_lower = [str(c).strip().lower() for c in raw_daily_df.columns]
-                    courier_col_idx = -1; qty_col_idx = -1
+                    cols_lower = [str(c).strip().lower() for c in raw_daily_df.columns]; courier_col_idx = -1; qty_col_idx = -1
                     for idx, c_name in enumerate(cols_lower):
-                        if any(k in c_name for k in ['ekspedisi', 'kurir', 'courier', 'service']):
-                            courier_col_idx = idx; break
+                        if any(k in c_name for k in ['ekspedisi', 'kurir', 'courier', 'service']): courier_col_idx = idx; break
                     if courier_col_idx == -1 and len(raw_daily_df.columns) > 0: courier_col_idx = 0
                     for idx, c_name in enumerate(cols_lower):
                         if any(k in c_name for k in ['deliveree', 'qty', 'total', 'order']):
                             if idx != courier_col_idx: qty_col_idx = idx; break
                     if courier_col_idx != -1 and qty_col_idx != -1:
-                        c_col_name = raw_daily_df.columns[courier_col_idx]
-                        q_col_name = raw_daily_df.columns[qty_col_idx]
+                        c_col_name = raw_daily_df.columns[courier_col_idx]; q_col_name = raw_daily_df.columns[qty_col_idx]
                         target_kurir = ['go-jek/grab/shopee instant', 'anteraja sameday (rit 1)', 'anteraja sameday (rit 2)', 'anteraja sameday (rit 3)', 'paxel ( rit 1 )', 'paxel ( rit 2 )', 'paxel ( rit 3 )']
                         for _, r in raw_daily_df.iterrows():
                             c_val = str(r[c_col_name]).strip().lower()
@@ -633,79 +542,39 @@ if files_ready:
                             if any(tk == c_val for tk in target_kurir):
                                 try: val_kurir_instan += int(float(str(r[q_col_name]).replace(',', '').strip()))
                                 except: pass
-
                 if val_kurir_instan == 0 and 'Kurir' in final_df.columns:
                     instan_list = ['go-jek/grab/shopee instant', 'anteraja sameday (rit 1)', 'anteraja sameday (rit 2)', 'anteraja sameday (rit 3)', 'paxel ( rit 1 )', 'paxel ( rit 2 )', 'paxel ( rit 3 )']
                     val_kurir_instan = int(final_df['Kurir'].astype(str).str.strip().str.lower().isin(instan_list).sum())
-
-                brand2_series = final_df['Brand 2'].astype(str).str.strip().str.lower()
-                platform_series = final_df['Platform'].astype(str).str.strip().str.lower()
-                fulfilment_brands = ['dojako', 'firda', 'noura', "mama's choice", 'mamas choice']
-                is_fulfilment = brand2_series.isin(fulfilment_brands)
-                is_other = ((platform_series == 'webstore') & (brand2_series == 'acekid')) | ((platform_series == 'other') & (brand2_series == 'sk'))
-                is_enabler = ~is_fulfilment & ~is_other
-                val_jc_fulfilment = int(is_fulfilment.sum())
-                val_other = int(is_other.sum())
-                val_jc_enabler = int(is_enabler.sum())
-
+                brand2_series = final_df['Brand 2'].astype(str).str.strip().str.lower(); platform_series = final_df['Platform'].astype(str).str.strip().str.lower(); fulfilment_brands = ['dojako', 'firda', 'noura', "mama's choice", 'mamas choice']; is_fulfilment = brand2_series.isin(fulfilment_brands); is_other = ((platform_series == 'webstore') & (brand2_series == 'acekid')) | ((platform_series == 'other') & (brand2_series == 'sk')); is_enabler = ~is_fulfilment & ~is_other; val_jc_fulfilment = int(is_fulfilment.sum()); val_other = int(is_other.sum()); val_jc_enabler = int(is_enabler.sum())
                 val_pending = 0
                 if not raw_daily_df.empty:
                     col0 = raw_daily_df.columns[0]; col1 = raw_daily_df.columns[1] if len(raw_daily_df.columns) > 1 else col0
                     clean_daily = raw_daily_df[~(raw_daily_df[col0].astype(str).str.lower().str.contains('total', na=False) | raw_daily_df[col1].astype(str).str.lower().str.contains('total', na=False))]
                     col_pending = next((c for c in clean_daily.columns if 'cut off' in c.lower() or 'pending' in c.lower()), None)
                     if col_pending: val_pending = int(pd.to_numeric(clean_daily[col_pending].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0).sum())
-
-                val_traceable = int(final_df['Master_Tracking'].eq('traceable').sum())
-                val_untraceable = int(final_df['Master_Tracking'].eq('untraceable').sum())
-
-                metrics_data = [
-                    [1, "delivery_rate", val_delivery_rate, "Persentase delivery rate"],
-                    [2, "delivered", f"{val_delivered:,}", "Total order di sheet Laporan_WMS"],
-                    [3, "target", f"{val_target:,}", "Total baris dari file Order Summary Export OPEN"],
-                    [4, "pending_order", f"{val_pending:,}", "Jumlah order pending"],
-                    [5, "avg_shipped", "0:24:41", "Rata-rata waktu ke shipped"],
-                    [6, "avg_handover", "4:20:20", "Rata-rata waktu ke handover"],
-                    [7, "kurir_instan", val_kurir_instan, "Total kurir instan"],
-                    [8, "jc_enabler", val_jc_enabler, "Jet Commerce Enabler"],
-                    [9, "jc_fulfilment", val_jc_fulfilment, "Jet Commerce Fulfilment"],
-                    [10, "other", val_other, "Kategori lainnya"],
-                    [11, "traceable", val_traceable, "Paket yang bisa dilacak"],
-                    [12, "untraceable", val_untraceable, "Paket tidak bisa dilacak"],
-                ]
+                val_traceable = int(final_df['Master_Tracking'].eq('traceable').sum()); val_untraceable = int(final_df['Master_Tracking'].eq('untraceable').sum())
+                metrics_data = [[1, "delivery_rate", val_delivery_rate, "Persentase delivery rate"], [2, "delivered", f"{val_delivered:,}", "Total order di sheet Laporan_WMS"], [3, "target", f"{val_target:,}", "Total baris dari file Order Summary Export OPEN"], [4, "pending_order", f"{val_pending:,}", "Jumlah order pending"], [5, "avg_shipped", "0:24:41", "Rata-rata waktu ke shipped"], [6, "avg_handover", "4:20:20", "Rata-rata waktu ke handover"], [7, "kurir_instan", val_kurir_instan, "Total kurir instan"], [8, "jc_enabler", val_jc_enabler, "Jet Commerce Enabler"], [9, "jc_fulfilment", val_jc_fulfilment, "Jet Commerce Fulfilment"], [10, "other", val_other, "Kategori lainnya"], [11, "traceable", val_traceable, "Paket yang bisa dilacak"], [12, "untraceable", val_untraceable, "Paket tidak bisa dilacak"]]
                 df_metrics = pd.DataFrame(metrics_data, columns=["No", "Metric_Name", "Value", "Description"])
-                
                 worksheet_db.set_row(0, 4, black_divider)
                 def write_custom_table_autofit(df_table, start_row, start_col):
                     for c_idx, col_name in enumerate(df_table.columns):
                         worksheet_db.write(start_row, start_col + c_idx, col_name, header_format_db)
-                        col_data = df_table.iloc[:, c_idx].astype(str)
-                        max_val_len = col_data.str.len().max() if not col_data.empty else 0
-                        max_len = max(len(str(col_name)), max_val_len)
-                        worksheet_db.set_column(start_col + c_idx, start_col + c_idx, max_len + 4)
+                        col_data = df_table.iloc[:, c_idx].astype(str); max_val_len = col_data.str.len().max() if not col_data.empty else 0; max_len = max(len(str(col_name)), max_val_len); worksheet_db.set_column(start_col + c_idx, start_col + c_idx, max_len + 4)
                     for r_idx, row in enumerate(df_table.values):
-                        for c_idx, val in enumerate(row):
-                            worksheet_db.write(start_row + r_idx + 1, start_col + c_idx, val, cell_format_db)
+                        for c_idx, val in enumerate(row): worksheet_db.write(start_row + r_idx + 1, start_col + c_idx, val, cell_format_db)
+                write_custom_table_autofit(df_metrics, 1, 0); worksheet_db.set_column(4, 4, 0.5, black_divider); write_custom_table_autofit(df_brand, 1, 5); worksheet_db.set_column(9, 9, 0.5, black_divider); write_custom_table_autofit(df_kurir, 1, 10); worksheet_db.set_column(14, 14, 0.5, black_divider); write_custom_table_autofit(df_kurir_manifest, 1, 15); worksheet_db.set_column(18, 18, 0.5, black_divider); write_custom_table_autofit(df_status, 1, 19); worksheet_db.set_column(22, 22, 0.5, black_divider); write_custom_table_autofit(df_late_manifest, 1, 23)
 
-                write_custom_table_autofit(df_metrics, 1, 0)
-                worksheet_db.set_column(4, 4, 0.5, black_divider)
-                write_custom_table_autofit(df_brand, 1, 5)
-                worksheet_db.set_column(9, 9, 0.5, black_divider)
-                write_custom_table_autofit(df_kurir, 1, 10)
-                worksheet_db.set_column(14, 14, 0.5, black_divider)
-                write_custom_table_autofit(df_kurir_manifest, 1, 15)
-                worksheet_db.set_column(18, 18, 0.5, black_divider)
-                write_custom_table_autofit(df_status, 1, 19)
-                worksheet_db.set_column(22, 22, 0.5, black_divider)
-                write_custom_table_autofit(df_late_manifest, 1, 23)
+            # --- AKHIR LOGIKA ASLI ---
 
-            # Hitung metrik keterlambatan secara dinamis
+            # Simpan hasil ke session state untuk UI
+            st.session_state['excel_data'] = output.getvalue()
+            
+            # Hitung metrik KPI tambahan untuk UI
             val_total_late = int((final_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late').sum())
             mask_late = final_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late'
             val_avg_late_sec = max_sec[mask_late.values].mean() if val_total_late > 0 else 0
-            
             avg_late_str = f"{int(val_avg_late_sec)//3600}:{(int(val_avg_late_sec)%3600)//60:02d}:{int(val_avg_late_sec)%60:02d}"
 
-            st.session_state['excel_data'] = output.getvalue()
             st.session_state['metrics'] = {
                 "Delivery Rate": f"{val_delivery_rate}%",
                 "Delivered": f"{val_delivered:,}",
@@ -714,7 +583,8 @@ if files_ready:
                 "Total Late": f"{val_total_late:,}",
                 "Avg Delay": avg_late_str
             }
-            update_progress(100, "Selesai!")
+            
+            progress_bar.progress(100, text="Processing Selesai! (100%)")
             st.toast("Data berhasil diproses!", icon="🚀")
 
         except Exception as e:
@@ -724,156 +594,72 @@ if files_ready:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
-# 7. RESULTS DASHBOARD
+# 7. TAMPILAN HASIL (UI PROFESIONAL)
 # ==========================================
 if 'processed_result' in st.session_state:
     res_df = st.session_state['processed_result']
+    m = st.session_state.get('metrics', {})
     
-    # Quick Metrics - Enhanced with Late Stats
-    if 'metrics' in st.session_state:
-        m = st.session_state['metrics']
-        
-        # Row 1: General Stats
+    # KPI Cards
+    if m:
         col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-        with col_m1:
-            st.markdown(f'<div class="metric-card"><div class="metric-label">📈 Delivery Rate</div><div class="metric-value">{m["Delivery Rate"]}</div></div>', unsafe_allow_html=True)
-        with col_m2:
-            st.markdown(f'<div class="metric-card"><div class="metric-label">📦 Total Delivered</div><div class="metric-value">{m["Delivered"]}</div></div>', unsafe_allow_html=True)
-        with col_m3:
-            st.markdown(f'<div class="metric-card"><div class="metric-label">🎯 Target Order</div><div class="metric-value">{m["Target"]}</div></div>', unsafe_allow_html=True)
-        with col_m4:
-            st.markdown(f'<div class="metric-card"><div class="metric-label">⏳ Pending Order</div><div class="metric-value">{m["Pending"]}</div></div>', unsafe_allow_html=True)
+        with col_m1: st.markdown(f'<div class="metric-card"><div class="metric-label">📈 Delivery Rate</div><div class="metric-value">{m["Delivery Rate"]}</div></div>', unsafe_allow_html=True)
+        with col_m2: st.markdown(f'<div class="metric-card"><div class="metric-label">📦 Total Delivered</div><div class="metric-value">{m["Delivered"]}</div></div>', unsafe_allow_html=True)
+        with col_m3: st.markdown(f'<div class="metric-card"><div class="metric-label">🎯 Target Order</div><div class="metric-value">{m["Target"]}</div></div>', unsafe_allow_html=True)
+        with col_m4: st.markdown(f'<div class="metric-card"><div class="metric-label">⏳ Pending Order</div><div class="metric-value">{m["Pending"]}</div></div>', unsafe_allow_html=True)
         
-        st.write("") # Spacer
-        
-        # Row 2: Late Stats (High Emphasis)
+        st.write("")
         col_l1, col_l2, col_l3 = st.columns([1, 1, 2])
-        with col_l1:
-            st.markdown(f"""
-                <div class="metric-card" style="border-left: 5px solid #EF4444;">
-                    <div class="metric-label" style="color: #EF4444;">🚨 Total Late</div>
-                    <div class="metric-value" style="color: #B91C1C;">{m["Total Late"]}</div>
-                </div>
-            """, unsafe_allow_html=True)
-        with col_l2:
-            st.markdown(f"""
-                <div class="metric-card" style="border-left: 5px solid #F59E0B;">
-                    <div class="metric-label" style="color: #F59E0B;">⏱️ Avg Delay Time</div>
-                    <div class="metric-value" style="color: #B45309;">{m["Avg Delay"]}</div>
-                </div>
-            """, unsafe_allow_html=True)
-        with col_l3:
-            # Info box for context
-            st.info(f"💡 **Info:** Rata-rata waktu keterlambatan dihitung dari durasi proses terlama pada setiap order yang berstatus 'Late'.")
-    
+        with col_l1: st.markdown(f'<div class="metric-card" style="border-left: 5px solid #EF4444;"><div class="metric-label" style="color: #EF4444;">🚨 Total Late</div><div class="metric-value" style="color: #B91C1C;">{m["Total Late"]}</div></div>', unsafe_allow_html=True)
+        with col_l2: st.markdown(f'<div class="metric-card" style="border-left: 5px solid #F59E0B;"><div class="metric-label" style="color: #F59E0B;">⏱️ Avg Delay Time</div><div class="metric-value" style="color: #B45309;">{m["Avg Delay"]}</div></div>', unsafe_allow_html=True)
+        with col_l3: st.info(f"💡 **Info:** Rata-rata waktu keterlambatan dihitung dari durasi proses terlama pada setiap order yang berstatus 'Late'.")
+
     st.markdown('<div class="modern-card">', unsafe_allow_html=True)
-    
     tab1, tab2, tab3 = st.tabs(["📊 Analytics", "🔍 Untraceable Check", "📋 Data Preview"])
     
     with tab1:
-        st.markdown("### 📈 Grafik Late Proses By & Kurir")
-        if 'Status Manifest' in res_df.columns and 'Late Proses By' in res_df.columns and 'Kurir' in res_df.columns:
-            late_df_web = res_df[res_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late'].copy()
-            if not late_df_web.empty:
-                chart_df = late_df_web.groupby(['Kurir', 'Late Proses By']).size().reset_index(name='Qty')
-                chart_df = chart_df.sort_values(by='Qty', ascending=False)
-                # Peningkatan visualisasi grafik:
-                # 1. Menggunakan skema warna yang lebih profesional (set2)
-                # 2. Menambahkan tooltips untuk presisi data saat hover
-                # 3. Memperjelas label angka di ujung bar
-                base = alt.Chart(chart_df).encode(
-                    y=alt.Y('Kurir:N', sort='-x', title='Kurir / Ekspedisi'),
-                    x=alt.X('Qty:Q', title='Jumlah Order (Unit)'),
-                    color=alt.Color('Late Proses By:N', 
-                                  scale=alt.Scale(scheme='set2'), 
-                                  legend=alt.Legend(title="Penyebab Keterlambatan", orient="bottom")),
-                    tooltip=['Kurir', 'Late Proses By', 'Qty']
-                )
-                
-                bars = base.mark_bar(
-                    cornerRadiusTopRight=6, 
-                    cornerRadiusBottomRight=6,
-                    height=20
-                )
-                
-                text = base.mark_text(
-                    align='left',
-                    baseline='middle',
-                    dx=5,
-                    fontWeight=600,
-                    fontSize=12,
-                    color='#1E293B'
-                ).encode(
-                    text=alt.Text('Qty:Q', format=',')
-                )
-                
-                chart = (bars + text).properties(
-                    height=alt.Step(40), # Memberikan ruang antar bar agar tidak rapat
-                    title=alt.TitleParams(
-                        text='Analisis Keterlambatan per Kurir',
-                        subtitle=['Menampilkan distribusi penyebab keterlambatan (Late) untuk setiap ekspedisi'],
-                        anchor='start',
-                        fontSize=16,
-                        fontWeight=700
-                    )
-                ).configure_view(
-                    strokeWidth=0
-                ).configure_axis(
-                    labelFontSize=11,
-                    titleFontSize=12,
-                    grid=False
-                )
-                
-                st.altair_chart(chart, use_container_width=True)
-            else:
-                st.info("ℹ️ Tidak ada data dengan status manifest 'Late'.")
+        st.markdown("### 📈 Analisis Keterlambatan per Kurir")
+        late_df_web = res_df[res_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late'].copy()
+        if not late_df_web.empty:
+            chart_df = late_df_web.groupby(['Kurir', 'Late Proses By']).size().reset_index(name='Qty')
+            chart_df = chart_df.sort_values(by='Qty', ascending=False)
+            base = alt.Chart(chart_df).encode(
+                y=alt.Y('Kurir:N', sort='-x', title='Kurir / Ekspedisi'),
+                x=alt.X('Qty:Q', title='Jumlah Order (Unit)'),
+                color=alt.Color('Late Proses By:N', scale=alt.Scale(scheme='set2'), legend=alt.Legend(title="Penyebab Keterlambatan", orient="bottom")),
+                tooltip=['Kurir', 'Late Proses By', 'Qty']
+            )
+            bars = base.mark_bar(cornerRadiusTopRight=6, cornerRadiusBottomRight=6, height=20)
+            text = base.mark_text(align='left', baseline='middle', dx=5, fontWeight=600, fontSize=12, color='#1E293B').encode(text=alt.Text('Qty:Q', format=','))
+            chart = (bars + text).properties(height=alt.Step(40)).configure_view(strokeWidth=0).configure_axis(labelFontSize=11, titleFontSize=12, grid=False)
+            st.altair_chart(chart, use_container_width=True)
+        else: st.info("ℹ️ Tidak ada data dengan status manifest 'Late'.")
         
     with tab2:
         if 'Master_Tracking' in res_df.columns:
             untraceable_data = res_df[res_df['Master_Tracking'] == 'untraceable'].copy()
             untraceable_count = len(untraceable_data)
-            
             if untraceable_count > 0:
-                st.markdown(f'<span class="badge badge-warning">⚠️ {untraceable_count} Paket Untraceable</span>', unsafe_allow_html=True)
+                st.warning(f"⚠️ Ditemukan {untraceable_count} paket dengan status Untraceable!")
                 col_u1, col_u2 = st.columns([1, 2])
-                with col_u1:
-                    st.markdown("**Ringkasan per Status:**")
-                    status_summary = untraceable_data['Status'].value_counts().reset_index()
-                    status_summary.columns = ['Status', 'Jumlah']
-                    st.dataframe(status_summary, use_container_width=True, hide_index=True)
-                with col_u2:
-                    st.markdown("**Detail Paket:**")
-                    cols_to_show = [c for c in ['No', 'WMS Order', 'ERP Document Number', 'Platform', 'Kurir', 'Status', 'Tracking#/PRO#'] if c in untraceable_data.columns]
-                    st.dataframe(untraceable_data[cols_to_show], use_container_width=True, hide_index=True)
-            else:
-                st.success("🎉 Seluruh paket berstatus Traceable!")
+                with col_u1: st.dataframe(untraceable_data['Status'].value_counts().reset_index(), use_container_width=True, hide_index=True)
+                with col_u2: st.dataframe(untraceable_data[[c for c in ['No', 'WMS Order', 'ERP Document Number', 'Platform', 'Kurir', 'Status', 'Tracking#/PRO#'] if c in untraceable_data.columns]], use_container_width=True, hide_index=True)
+            else: st.success("🎉 Seluruh paket berstatus Traceable!")
 
     with tab3:
         essential_cols = ['WMS Order', 'ERP Document Number', 'Tracking#/PRO#', 'Platform', 'Kurir', 'Status']
         empty_report = []
         for col in essential_cols:
             if col in res_df.columns:
-                missing_count = (res_df[col].isna() | (res_df[col].astype(str).str.strip() == '') | res_df[col].astype(str).str.strip().str.lower().isin(['nan', 'none', 'null', 'nat'])).sum()
-                if missing_count > 0: empty_report.append(f"**{col}**: {missing_count} baris kosong")
-        
+                missing = (res_df[col].isna() | (res_df[col].astype(str).str.strip() == '') | res_df[col].astype(str).str.strip().str.lower().isin(['nan', 'none', 'null', 'nat'])).sum()
+                if missing > 0: empty_report.append(f"**{col}**: {missing} baris kosong")
         if empty_report:
             with st.expander("🚨 Peringatan Data Kosong"):
                 for rep in empty_report: st.write(f"- {rep}")
-        
-        display_df = res_df.drop(columns=['Master_Tracking'], errors='ignore')
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
+        st.dataframe(res_df.drop(columns=['Master_Tracking'], errors='ignore'), use_container_width=True, hide_index=True)
 
     st.divider()
-    
     col_d1, col_d2, col_d3 = st.columns([1, 1, 1])
     with col_d2:
-        st.download_button(
-            label="📥 Download Laporan Excel",
-            data=st.session_state['excel_data'],
-            file_name=f"Laporan_Outbound_{datetime.datetime.now().strftime('%Y%m%d')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            type="primary",
-            use_container_width=True
-        )
-    
+        st.download_button(label="📥 Download Laporan Excel", data=st.session_state['excel_data'], file_name=f"Laporan_Outbound_{datetime.datetime.now().strftime('%Y%m%d')}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary", use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
