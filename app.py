@@ -631,11 +631,36 @@ with st.container():
                     
                     black_divider = workbook.add_format({'bg_color': '#000000'})
                     
+                    # --- PERBAIKAN KOLOM TARGET PADA TABEL BRAND (LOOKUP OPEN ORDER SUMMARY -> MASTER BRAND 2 -> COUNTIF BRAND DB) ---
                     df_brand = final_df['Brand'].value_counts().reset_index()
                     df_brand.columns = ['Brand', 'Delivered']
                     df_brand.insert(0, 'No', range(1, len(df_brand) + 1))
-                    df_brand['Target'] = 0 
                     
+                    df_os_open = dfs.get('order_summary_open', dfs.get('order_summary', pd.DataFrame()))
+                    if not df_os_open.empty and master_store_db:
+                        col_store_os = next((c for c in df_os_open.columns if 'store number' in c.lower() or c.lower() == 'storenumber' or 'store' in c.lower()), None)
+                        if col_store_os:
+                            os_mapped_brands = []
+                            for _, row in df_os_open.iterrows():
+                                sn = safe_key(row[col_store_os])
+                                store_info = master_store_db.get(sn, {})
+                                # Lookup Master: ambil Brand 2 (fallback ke Brand jika kosong)
+                                b_val = store_info.get('Brand2', '')
+                                if not b_val:
+                                    b_val = store_info.get('Brand', '')
+                                if b_val:
+                                    os_mapped_brands.append(b_val)
+                            
+                            if os_mapped_brands:
+                                target_counts = pd.Series(os_mapped_brands).value_counts()
+                                df_brand['Target'] = df_brand['Brand'].map(target_counts).fillna(0).astype(int)
+                            else:
+                                df_brand['Target'] = 0
+                        else:
+                            df_brand['Target'] = 0
+                    else:
+                        df_brand['Target'] = 0
+
                     df_kurir = final_df['Kurir'].value_counts().reset_index()
                     df_kurir.columns = ['Courier_Name', 'Total_Package']
                     df_kurir = df_kurir.head(5)
@@ -667,7 +692,6 @@ with st.container():
                     else:
                         df_kurir_manifest = pd.DataFrame(columns=['No', 'Courier_Name', 'Avg_Times_Proses_Kurir_to_Shipped'])
 
-                    df_os_open = dfs.get('order_summary_open', dfs.get('order_summary', pd.DataFrame()))
                     col_ref_sum = next((c for c in df_os_open.columns if 'ref#' in c.lower()), None)
                     val_target = df_os_open[col_ref_sum].astype(str).str.strip().replace('', np.nan).replace('nan', np.nan).dropna().nunique() if col_ref_sum else 0
                     val_delivered = len(final_df)
@@ -847,7 +871,6 @@ if 'processed_result' in st.session_state:
                 chart_df = late_df_web.groupby(['Kurir', 'Late Proses By']).size().reset_index(name='Qty')
                 chart_df = chart_df.sort_values(by='Qty', ascending=False)
                 
-                # Grafik bar chart horizontal dengan posisi angka pas di tengah segmen (besar & bold)
                 base = alt.Chart(chart_df).encode(
                     y=alt.Y('Kurir:N', sort='-x', title='Kurir'),
                     x=alt.X('Qty:Q', title='Jumlah Order (Qty)'),
