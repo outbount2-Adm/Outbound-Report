@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import traceback
 import datetime
-import altair as alt
 from io import BytesIO
 
 # ==========================================
@@ -19,7 +18,7 @@ st.set_page_config(
 current_date_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 # ==========================================
-# 2. CSS KUSTOM
+# 2. CSS KUSTOM (Termasuk Penghilang Menu Balon & Floating Toolbar)
 # ==========================================
 custom_css = """
 <style>
@@ -129,9 +128,21 @@ custom_css = """
         display: flex;
         align-items: center;
     }
-    .result-warning { background-color: #FFFBEB; color: #92400E; border: 1px solid #FDE68A; }
+    .result-warning { background-color: #FEF2F2; color: #991B1B; border: 1px solid #FCA5A5; }
 
-    #MainMenu, footer, header, .stDeployButton { visibility: hidden; display: none; }
+    /* ==========================================
+       SEMBUNYIKAN MENU BALON & TOOLBAR POJOK KANAN BAWAH
+       ========================================== */
+    #MainMenu { visibility: hidden !important; display: none !important; }
+    footer { visibility: hidden !important; display: none !important; }
+    header { visibility: hidden !important; display: none !important; }
+    .stDeployButton { visibility: hidden !important; display: none !important; }
+    [data-testid="stToolbar"] { visibility: hidden !important; display: none !important; }
+    [data-testid="stDecoration"] { visibility: hidden !important; display: none !important; }
+    [data-testid="stStatusWidget"] { visibility: hidden !important; display: none !important; }
+    div.viewerBadge_container__1QSob { visibility: hidden !important; display: none !important; }
+    .viewerBadge { visibility: hidden !important; display: none !important; }
+    iframe[title="streamlitApp"] { display: none !important; }
 </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
@@ -173,7 +184,6 @@ with st.container():
     st.markdown('<div class="section-container">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">📁 Data Center & Konfigurasi Officer</div>', unsafe_allow_html=True)
     
-    # Input Officer ditampilkan langsung di halaman utama agar jelas terlihat
     if 'saved_admin' not in st.session_state:
         st.session_state['saved_admin'] = "Admin Logistik"
     
@@ -835,7 +845,6 @@ with st.container():
 
                 st.session_state['excel_data'] = output.getvalue()
                 
-                # Metrics Calculation for UI Dashboard Cards
                 val_total_late = int((final_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late').sum())
                 mask_late = final_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late'
                 val_avg_late_sec = max_sec[mask_late.values].mean() if val_total_late > 0 else 0
@@ -870,7 +879,6 @@ if 'processed_result' in st.session_state:
     res_df = st.session_state['processed_result']
     m = st.session_state.get('metrics', {})
     
-    # --- TODO / METRIC CARDS ---
     if m:
         st.markdown('<div class="section-container">', unsafe_allow_html=True)
         st.markdown('<div class="section-title">📌 Todo / Key Metrics Overview</div>', unsafe_allow_html=True)
@@ -904,7 +912,6 @@ if 'processed_result' in st.session_state:
         """, unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- TABS: ANALYTICS KURIR, UNTRACEABLE CHECK, DATA PREVIEW ---
     st.markdown('<div class="section-container">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">📊 Analisis & Data Preview</div>', unsafe_allow_html=True)
     
@@ -916,43 +923,27 @@ if 'processed_result' in st.session_state:
             late_df_web = res_df[res_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late'].copy()
             
             if not late_df_web.empty:
-                chart_df = late_df_web.groupby(['Kurir', 'Late Proses By']).size().reset_index(name='Qty')
-                chart_df = chart_df[chart_df['Qty'] > 0]
-                chart_df = chart_df.sort_values(by=['Kurir', 'Late Proses By'])
-                
-                chart_df['Qty_cumu'] = chart_df.groupby('Kurir')['Qty'].cumsum()
-                chart_df['Qty_mid'] = chart_df['Qty_cumu'] - (chart_df['Qty'] / 2)
-                
-                sort_order = alt.EncodingSortField(field='Qty', op='sum', order='descending')
-                
-                base = alt.Chart(chart_df).encode(
-                    y=alt.Y('Kurir:N', sort=sort_order, title='Kurir / Ekspedisi', axis=alt.Axis(labelLimit=200, titleFontWeight=600))
+                # Menampilkan Statistik Saja (Pivot Table / Cross-Tabulation Kurir dan Late Proses By)
+                stat_df = pd.pivot_table(
+                    late_df_web,
+                    index='Kurir',
+                    columns='Late Proses By',
+                    values='WMS Order',
+                    aggfunc='count',
+                    fill_value=0
                 )
+                if '' in stat_df.columns:
+                    stat_df = stat_df.drop(columns=[''])
                 
-                # Sumbu X (axis=None) dihilangkan agar chart otomatis menyesuaikan panjang batang tanpa patokan angka sumbu bawah
-                bars = base.mark_bar(height=28, opacity=0.9).encode(
-                    x=alt.X('Qty:Q', stack='zero', axis=None),
-                    color=alt.Color('Late Proses By:N', scale=alt.Scale(scheme='tableau10'), legend=alt.Legend(title="Penyebab Keterlambatan", orient="bottom", titleFontWeight=600)),
-                    tooltip=['Kurir:N', 'Late Proses By:N', 'Qty:Q']
-                )
+                stat_df['Total Late'] = stat_df.sum(axis=1)
+                stat_df = stat_df.sort_values(by='Total Late', ascending=False).reset_index()
                 
-                text = base.mark_text(
-                    align='center', 
-                    baseline='middle', 
-                    fontWeight='bold', 
-                    fontSize=12, 
-                    color='black'
-                ).encode(
-                    x=alt.X('Qty_mid:Q', axis=None),
-                    text=alt.Text('Qty:Q', format=',')
-                )
-                
-                chart = (bars + text).properties(height=420, padding={'left': 10, 'right': 10, 'top': 10, 'bottom': 10}).interactive()
-                st.altair_chart(chart, use_container_width=True)
+                st.markdown("**Tabel Statistik Keterlambatan (Kurir vs Penyebab Keterlambatan):**")
+                st.dataframe(stat_df, use_container_width=True, hide_index=True)
             else:
                 st.info("ℹ️ Tidak ada data dengan status manifest 'Late'.")
         else:
-            st.info("ℹ️ Kolom yang diperlukan untuk grafik tidak ditemukan.")
+            st.info("ℹ️ Kolom yang diperlukan tidak ditemukan.")
 
     with tab2:
         if 'Master_Tracking' in res_df.columns:
