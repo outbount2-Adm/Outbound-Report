@@ -958,6 +958,9 @@ if 'processed_result' in st.session_state:
                     fill_value=0
                 )
                 
+                # Membersihkan nama level kolom agar tidak bentrok dengan index
+                stat_df.columns.name = None
+                
                 expected_cols = ['Admin', 'Outbound', 'Packer', 'Picker', 'System', 'Kurir']
                 for col in expected_cols:
                     if col not in stat_df.columns:
