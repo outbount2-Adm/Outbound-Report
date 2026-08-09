@@ -910,25 +910,19 @@ if 'processed_result' in st.session_state:
             late_df_web = res_df[res_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late'].copy()
             
             if not late_df_web.empty:
-                # 1. CHART
+                # 1. CHART (Tanpa Axis, Label di tengah block chart warna, warna hitam & bold)
                 chart_df = late_df_web.groupby(['Kurir', 'Late Proses By']).size().reset_index(name='Qty')
                 chart_df = chart_df[chart_df['Qty'] > 0]
                 chart_df = chart_df.sort_values(by=['Kurir', 'Late Proses By'])
                 
-                chart_df['Qty_cumu'] = chart_df.groupby('Kurir')['Qty'].cumsum()
-                chart_df['Qty_mid'] = chart_df['Qty_cumu'] - (chart_df['Qty'] / 2)
-                
-                sort_order = alt.EncodingSortField(field='Qty', op='sum', order='descending')
-                
                 base = alt.Chart(chart_df).encode(
-                    y=alt.Y('Kurir:N', sort=sort_order, title='Kurir / Ekspedisi', axis=alt.Axis(labelLimit=200, titleFontWeight=600))
-                )
-                
-                bars = base.mark_bar(height=28, opacity=0.9).encode(
-                    x=alt.X('Qty:Q', stack='zero', axis=None),
+                    y=alt.Y('Kurir:N', sort='-x', axis=None, title=None),
+                    x=alt.X('Qty:Q', stack='zero', axis=None, title=None),
                     color=alt.Color('Late Proses By:N', scale=alt.Scale(scheme='tableau10'), legend=alt.Legend(title="Penyebab Keterlambatan", orient="bottom", titleFontWeight=600)),
                     tooltip=['Kurir:N', 'Late Proses By:N', 'Qty:Q']
                 )
+                
+                bars = base.mark_bar(height=28, opacity=0.9)
                 
                 text = base.mark_text(
                     align='center', 
@@ -937,7 +931,7 @@ if 'processed_result' in st.session_state:
                     fontSize=12, 
                     color='black'
                 ).encode(
-                    x=alt.X('Qty_mid:Q', axis=None),
+                    x=alt.X('Qty:Q', stack='center', axis=None),
                     text=alt.Text('Qty:Q', format=',')
                 )
                 
