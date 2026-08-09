@@ -10,7 +10,7 @@ from io import BytesIO
 # 1. KONFIGURASI HALAMAN (QianYi Style)
 # ==========================================
 st.set_page_config(
-    page_title="Outbound Logistics Dashboard", 
+    page_title="QianYi Logistics Dashboard", 
     layout="wide", 
     page_icon="📦", 
     initial_sidebar_state="expanded"
@@ -111,20 +111,6 @@ custom_css = """
     .todo-label { font-size: 13px; font-weight: 500; opacity: 0.95; line-height: 1.3; }
     .todo-value { font-size: 22px; font-weight: 700; margin-top: 8px; }
 
-    /* Stats Row Styling */
-    .stats-row {
-        display: flex;
-        justify-content: space-around;
-        text-align: center;
-        padding: 10px 0;
-        flex-wrap: wrap;
-        gap: 10px;
-    }
-    .stat-item { flex: 1; min-width: 120px; border-right: 1px solid #F0F0F0; }
-    .stat-item:last-child { border-right: none; }
-    .stat-label { color: #8C8C8C; font-size: 13px; margin-bottom: 6px; font-weight: 500; }
-    .stat-value { color: #1890FF; font-size: 20px; font-weight: 700; }
-
     /* Form Inputs & Buttons */
     [data-testid="stTextInput"] > div > div > input {
         border-radius: 6px;
@@ -171,7 +157,7 @@ with st.sidebar:
     if 'saved_admin' not in st.session_state:
         st.session_state['saved_admin'] = "Admin Logistik"
     
-    admin_input = st.text_input("Officer Name", value=st.session_state['saved_admin'])
+    admin_input = st.text_input("Input Officer", value=st.session_state['saved_admin'])
     if st.button("Update Nama ✍️", use_container_width=True):
         st.session_state['saved_admin'] = admin_input
         st.rerun()
@@ -189,7 +175,7 @@ with st.sidebar:
 # ==========================================
 st.markdown(f"""
     <div class="top-bar">
-        <div style="font-weight: 700; color: #1890FF; font-size: 16px;">Console Outbound Auto-Processor</div>
+        <div style="font-weight: 700; color: #1890FF; font-size: 16px;">Automated Data Processing</div>
         <div style="font-size: 13px; color: #8C8C8C;">Update time: {current_date_time} <span style="color: #1890FF; margin-left: 10px; font-weight: 600;">Active 🔄</span></div>
     </div>
 """, unsafe_allow_html=True)
@@ -222,7 +208,7 @@ with st.container():
         )
 
     # ==========================================
-    # 5. LOGIKA UTAMA PEMPROSESAN DATA (Exact logic from app last update)
+    # 5. LOGIKA UTAMA PEMPROSESAN DATA
     # ==========================================
     if execute_clicked:
         if uploaded_files:
@@ -874,7 +860,7 @@ with st.container():
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
-# 6. TAMPILAN DASHBOARD QIANYI (Todo & Stats Rows) & PREVIEW
+# 6. TAMPILAN DASHBOARD QIANYI & PREVIEW
 # ==========================================
 if 'processed_result' in st.session_state:
     res_df = st.session_state['processed_result']
@@ -914,35 +900,6 @@ if 'processed_result' in st.session_state:
         """, unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # --- OUTBOUND STATS ROW ---
-        st.markdown('<div class="section-container">', unsafe_allow_html=True)
-        st.markdown('<div class="section-title">📤 Outbound Performance Summary</div>', unsafe_allow_html=True)
-        st.markdown(f"""
-        <div class="stats-row">
-            <div class="stat-item">
-                <div class="stat-label">Total Delivered</div>
-                <div class="stat-value">{m.get('Delivered', 0)}</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-label">Target Order</div>
-                <div class="stat-value">{m.get('Target', 0)}</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-label">Delivery Rate</div>
-                <div class="stat-value">{m.get('Delivery Rate', '0%')}</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-label">Pending Order</div>
-                <div class="stat-value">{m.get('Pending', 0)}</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-label">Total Late</div>
-                <div class="stat-value" style="color: #EF4444;">{m.get('Total Late', 0)}</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
     # --- TABS: ANALYTICS KURIR, UNTRACEABLE CHECK, DATA PREVIEW ---
     st.markdown('<div class="section-container">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">📊 Analisis & Data Preview</div>', unsafe_allow_html=True)
@@ -959,26 +916,30 @@ if 'processed_result' in st.session_state:
                 chart_df = chart_df.sort_values(by='Qty', ascending=False)
                 
                 base = alt.Chart(chart_df).encode(
-                    y=alt.Y('Kurir:N', sort='-x', title='Kurir / Ekspedisi'),
-                    x=alt.X('Qty:Q', stack='zero', title='Jumlah Order (Unit)'),
-                    color=alt.Color('Late Proses By:N', scale=alt.Scale(scheme='set2'), legend=alt.Legend(title="Penyebab Keterlambatan", orient="bottom")),
-                    tooltip=['Kurir', 'Late Proses By', 'Qty']
+                    y=alt.Y('Kurir:N', sort='-x', title='Kurir / Ekspedisi', axis=alt.Axis(labelLimit=200, titleFontWeight=600)),
+                    x=alt.X('Qty:Q', stack='zero', title='Jumlah Order Terlambat (Unit)', axis=alt.Axis(grid=True, gridColor='#F1F5F9', domainColor='#E2E8F0')),
+                    color=alt.Color('Late Proses By:N', scale=alt.Scale(scheme='tableau10'), legend=alt.Legend(title="Penyebab Keterlambatan", orient="bottom", titleFontWeight=600)),
+                    tooltip=[
+                        alt.Tooltip('Kurir:N', title='Kurir'),
+                        alt.Tooltip('Late Proses By:N', title='Penyebab'),
+                        alt.Tooltip('Qty:Q', title='Jumlah (Unit)', format=',')
+                    ]
                 )
-                bars = base.mark_bar(cornerRadiusTopRight=4, cornerRadiusBottomRight=4, height=22)
                 
-                # Teks warna hitam untuk kontras yang jelas sesuai permintaan sebelumnya
+                bars = base.mark_bar(cornerRadiusTopRight=6, cornerRadiusBottomRight=6, height=24, opacity=0.9)
+                
+                # Label teks qty rata tengah di dalam setiap segmen bar berwarna dengan font hitam tebal (bold)
                 text = base.mark_text(
                     align='center',
                     baseline='middle',
                     fontWeight='bold',
-                    fontSize=11,
+                    fontSize=12,
                     color='black'
                 ).encode(
-                    x=alt.X('Qty:Q', stack='center'),
                     text=alt.Text('Qty:Q', format=',')
                 )
                 
-                chart = (bars + text).properties(height=400)
+                chart = (bars + text).properties(height=420, padding={'left': 10, 'right': 10, 'top': 10, 'bottom': 10}).interactive()
                 st.altair_chart(chart, use_container_width=True)
             else:
                 st.info("ℹ️ Tidak ada data dengan status manifest 'Late'.")
