@@ -632,7 +632,6 @@ with st.container():
                     
                     black_divider = workbook.add_format({'bg_color': '#000000'})
                     
-                    # --- PERBAIKAN TOTAL TARGET BRAND (MENGHITUNG SELURUH 13.300 BARIS OPEN ORDER) ---
                     df_brand = final_df['Brand'].value_counts().reset_index()
                     df_brand.columns = ['Brand', 'Delivered']
                     df_brand.insert(0, 'No', range(1, len(df_brand) + 1))
@@ -685,11 +684,16 @@ with st.container():
                             grouped_late.insert(0, 'No', range(1, len(grouped_late) + 1))
                             df_late_manifest = grouped_late
 
+                    # --- PERBAIKAN URUTAN: TERKECIL KE TERBESAR (ASCENDING) PADA AVG TIMES PROSES KURIR ---
                     df_kurir_manifest = pd.DataFrame()
                     if 'Kurir' in final_df.columns and 'Times Proses Kurir to Shpped Date' in final_df.columns:
                         temp_k = final_df[['Kurir', 'Times Proses Kurir to Shpped Date']].copy()
                         temp_k['sec'] = get_safe_seconds(temp_k['Times Proses Kurir to Shpped Date'])
                         grouped_k = temp_k.groupby('Kurir')['sec'].mean().reset_index()
+                        
+                        # Urutkan berdasarkan waktu terkecil ke terbesar
+                        grouped_k = grouped_k.sort_values(by='sec', ascending=True).reset_index(drop=True)
+                        
                         grouped_k['Avg_Process_Time'] = grouped_k['sec'].apply(lambda s: f"{int(s)//3600}:{(int(s)%3600)//60:02d}:{int(s)%60:02d}" if pd.notna(s) and s > 0 else "0:00:00")
                         df_kurir_manifest = grouped_k[['Kurir', 'Avg_Process_Time']].copy()
                         df_kurir_manifest.columns = ['Courier_Name', 'Avg_Times_Proses_Kurir_to_Shipped']
@@ -697,7 +701,6 @@ with st.container():
                     else:
                         df_kurir_manifest = pd.DataFrame(columns=['No', 'Courier_Name', 'Avg_Times_Proses_Kurir_to_Shipped'])
 
-                    # Menyesuaikan nilai total target metrik agar sama persis dengan total baris di file Open Order Summary (13.300)
                     val_target = len(df_os_open) if not df_os_open.empty else 0
                     val_delivered = len(final_df)
                     val_delivery_rate = round((val_delivered / val_target * 100), 2) if val_target > 0 else 0.0
