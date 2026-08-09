@@ -915,30 +915,36 @@ if 'processed_result' in st.session_state:
             
             if not trend_df.empty:
                 chart_trend = trend_df.groupby(trend_df['Parsed_Date'].dt.date).size().reset_index(name='Qty')
+                chart_trend = chart_trend.sort_values('Parsed_Date')
                 chart_trend['Formatted_Date'] = pd.to_datetime(chart_trend['Parsed_Date']).dt.strftime('%m.%d')
                 
-                base = alt.Chart(chart_trend).encode(
-                    x=alt.X('Formatted_Date:N', title='', axis=alt.Axis(labelAngle=0, tickColor='#E2E8F0', domainColor='#E2E8F0')),
-                    y=alt.Y('Qty:Q', title='', axis=alt.Axis(grid=True, gridColor='#F1F5F9', domainColor='transparent'))
-                )
-                
-                area = base.mark_area(
-                    line={'color': '#2563EB', 'strokeWidth': 2.5},
-                    color='#2563EB',
-                    opacity=0.3,
-                    interpolate='monotone'
-                )
-                
-                points = base.mark_point(
-                    filled=True,
-                    fill='white',
-                    color='#2563EB',
-                    size=80,
-                    strokeWidth=2.5
-                )
-                
-                chart = (area + points).properties(height=380).interactive()
-                st.altair_chart(chart, use_container_width=True)
+                # Cek apakah data lebih dari 1 hari agar grafik garis/area dapat ditarik dengan benar
+                if len(chart_trend) > 1:
+                    base = alt.Chart(chart_trend).encode(
+                        x=alt.X('Formatted_Date:N', title='', sort=None, axis=alt.Axis(labelAngle=0, tickColor='#E2E8F0', domainColor='#E2E8F0')),
+                        y=alt.Y('Qty:Q', title='', scale=alt.Scale(zero=True), axis=alt.Axis(grid=True, gridColor='#F1F5F9', domainColor='transparent'))
+                    )
+                    
+                    area = base.mark_area(
+                        line={'color': '#2563EB', 'strokeWidth': 2.5},
+                        color='#2563EB',
+                        opacity=0.3,
+                        interpolate='monotone'
+                    )
+                    
+                    points = base.mark_point(
+                        filled=True,
+                        fill='white',
+                        color='#2563EB',
+                        size=80,
+                        strokeWidth=2.5
+                    )
+                    
+                    chart = (area + points).properties(height=380).interactive()
+                    st.altair_chart(chart, use_container_width=True)
+                else:
+                    st.info("ℹ️ Data tanggal handover yang diunggah saat ini hanya mencakup **1 hari**. Grafik tren garis membutuhkan data dari minimal 2 tanggal yang berbeda. Berikut ringkasan data tanggal tersebut:")
+                    st.dataframe(chart_trend[['Formatted_Date', 'Qty']].rename(columns={'Formatted_Date': 'Tanggal', 'Qty': 'Jumlah Order'}), use_container_width=True, hide_index=True)
             else:
                 st.info("ℹ️ Belum ada data tanggal handover yang valid untuk ditampilkan pada grafik tren.")
         else:
