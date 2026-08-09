@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import traceback
 import datetime
+import altair as alt
 from io import BytesIO
 
 # ==========================================
@@ -511,7 +512,6 @@ with st.container():
                         except: sec_list.append(0.0)
                     return pd.Series(sec_list)
 
-                # --- HITUNG LATE PROSES BY DI PYTHON AGAR MUNCUL NILAINYA ---
                 sec_an = get_safe_seconds(res['Pay-Created'])
                 sec_ao = get_safe_seconds(res['Created-Released'])
                 sec_ap = get_safe_seconds(res['Released-Pick'])
@@ -623,12 +623,11 @@ with st.container():
                         worksheet_wms.set_column(col_num, col_num, max_len + 4, cell_format_center)
 
                     # ==========================================
-                    # SHEET DB (DASHBOARD SUMMARY) - DIPERBAIKI
+                    # SHEET DB (DASHBOARD SUMMARY) - RATA TENGAH & AUTO-FIT
                     # ==========================================
                     worksheet_db = workbook.add_worksheet('DB')
                     header_format_db = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1, 'align': 'center', 'valign': 'vcenter'})
                     cell_format_db = workbook.add_format({'border': 1, 'align': 'center', 'valign': 'vcenter'})
-                    cell_format_left = workbook.add_format({'border': 1, 'align': 'left', 'valign': 'vcenter'})
                     
                     black_divider = workbook.add_format({'bg_color': '#000000'})
                     
@@ -674,7 +673,6 @@ with st.container():
                     val_delivered = len(final_df)
                     val_delivery_rate = round((val_delivered / val_target * 100), 2) if val_target > 0 else 0.0
 
-                    # 1. Kalkulasi Akurat Kurir Instan dari Daily HO (tanpa baris total)
                     raw_daily_df = dfs.get('daily_ho', pd.DataFrame()).copy()
                     val_kurir_instan = 0
                     if not raw_daily_df.empty:
@@ -726,7 +724,6 @@ with st.container():
                         ]
                         val_kurir_instan = int(final_df['Kurir'].astype(str).str.strip().str.lower().isin(instan_list).sum())
 
-                    # 2, 3, 4. Kalkulasi Akurat jc_fulfilment, jc_enabler, dan other
                     brand2_series = final_df['Brand 2'].astype(str).str.strip().str.lower()
                     platform_series = final_df['Platform'].astype(str).str.strip().str.lower()
                     
@@ -780,7 +777,7 @@ with st.container():
 
                         for r_idx, row in enumerate(df_table.values):
                             for c_idx, val in enumerate(row):
-                                worksheet_db.write(start_row + r_idx + 1, start_col + c_idx, val, cell_format_left if isinstance(val, str) else cell_format_db)
+                                worksheet_db.write(start_row + r_idx + 1, start_col + c_idx, val, cell_format_db)
 
                     write_custom_table_autofit(df_metrics, 1, 0)
                     worksheet_db.set_column(4, 4, 0.5, black_divider)
@@ -841,24 +838,34 @@ if 'processed_result' in st.session_state:
             else:
                 st.info("🎉 Seluruh paket berstatus **Traceable** (0 Untraceable).")
 
-        # --- GRAFIK SUMMARY LATE PROSES BY DI WEB DASHBOARD ---
-        st.markdown("### 📈 Grafik Summary Late Proses By")
-        if 'Status Manifest' in res_df.columns and 'Late Proses By' in res_df.columns:
-            late_df_web = res_df[res_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late']
-            categories = ['System', 'Admin', 'Picker', 'Packer', 'Outbound', 'Kurir']
+        # --- GRAFIK GABUNGAN LATE PROSES BY & KURIR (STATUS MANIFEST LATE) ---
+        st.markdown("### 📈 Grafik Gabungan Late Proses By & Kurir (Status Manifest Late)")
+        if 'Status Manifest' in res_df.columns and 'Late Proses By' in res_df.columns and 'Kurir' in res_df.columns:
+            late_df_web = res_df[res_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late'].copy()
             
             if not late_df_web.empty:
-                counts_by_cat = late_df_web['Late Proses By'].astype(str).str.strip().value_counts()
-                chart_data = pd.DataFrame({
-                    'Qty Order': [int(counts_by_cat.get(cat, 0)) for cat in categories]
-                }, index=categories)
-                st.bar_chart(chart_data)
+                chart_df = late_df_web.groupby(['Kurir', 'Late Proses By']).size().reset_index(name='Qty')
+                chart_df = chart_df.sort_values(by='Qty', ascending=False)
+                
+                # Buat horizontal bar chart dengan Altair (diurutkan dari terbanyak ke terdikit, teks horizontal, muncul data label)
+                base = alt.Chart(chart_df).encode(
+                    y=alt.Y('Kurir:N', sort='-x', title='Kurir'),
+                    x=alt.X('Qty:Q', title='Jumlah Order (Qty)'),
+                    color=alt.Color('Late Proses By:N', title='Late Proses By')
+                )
+                bars = base.mark_bar()
+                text = base.mark_text(
+                    align='left',
+                    baseline='middle',
+                    dx=3
+                ).encode(text='Qty:Q')
+                
+                chart = (bars + text).properties(height=400)
+                st.altair_chart(chart, use_container_width=True)
             else:
-                chart_data = pd.DataFrame({'Qty Order': [0]*len(categories)}, index=categories)
-                st.bar_chart(chart_data)
                 st.info("ℹ️ Tidak ada data dengan status manifest 'Late'.")
         else:
-            st.info("ℹ️ Kolom Status Manifest atau Late Proses By tidak ditemukan.")
+            st.info("ℹ️ Kolom yang diperlukan untuk grafik tidak ditemukan.")
 
         essential_cols = ['WMS Order', 'ERP Document Number', 'Tracking#/PRO#', 'Platform', 'Kurir', 'Status']
         empty_report = []
