@@ -591,7 +591,6 @@ with st.container():
                         )
                         worksheet_wms.write_formula(row_num + 1, 53, formula_late_by)
 
-                    # Auto-fit kolom dan ratatengah untuk Laporan_WMS berdasarkan header & data
                     for col_num, col_name in enumerate(df_to_export.columns):
                         worksheet_wms.write(0, col_num, col_name, format_header)
                         col_data_len = df_to_export.iloc[:, col_num].astype(str).str.len().max() if not df_to_export.empty else 0
@@ -624,7 +623,6 @@ with st.container():
                     df_status.columns = ['Status_Manifest', 'qty']
                     df_status.insert(0, 'No', range(1, len(df_status) + 1))
 
-                    # Summary Late Manifest berdasarkan Late Proses By
                     df_late_manifest = pd.DataFrame(columns=['No', 'Late_Proses_By', 'qty'])
                     if 'Status Manifest' in final_df.columns and 'Late Proses By' in final_df.columns:
                         late_df = final_df[final_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late']
@@ -652,6 +650,18 @@ with st.container():
                     val_delivered = len(final_df)
                     val_delivery_rate = round((val_delivered / val_target * 100), 2) if val_target > 0 else 0.0
 
+                    # Kalkulasi akurat Kurir Instan berdasarkan daftar ekspedisi yang diminta
+                    instan_list = [
+                        'go-jek/grab/shopee instant',
+                        'anteraja sameday (rit 1)', 'anteraja sameday (rit 2)', 'anteraja sameday (rit 3)',
+                        'paxel ( rit 1 )', 'paxel ( rit 2 )', 'paxel ( rit 3 )'
+                    ]
+                    if 'Kurir' in final_df.columns:
+                        kurir_series = final_df['Kurir'].astype(str).str.strip().str.lower()
+                        val_kurir_instan = int(kurir_series.isin(instan_list).sum())
+                    else:
+                        val_kurir_instan = 0
+
                     raw_daily_df = dfs.get('daily_ho', pd.DataFrame()).copy()
                     val_pending = 0
                     if not raw_daily_df.empty:
@@ -671,7 +681,7 @@ with st.container():
                         [4, "pending_order", f"{val_pending:,}", "Jumlah order pending"],
                         [5, "avg_shipped", "0:24:41", "Rata-rata waktu ke shipped"],
                         [6, "avg_handover", "4:20:20", "Rata-rata waktu ke handover"],
-                        [7, "kurir_instan", 428, "Total kurir instan"],
+                        [7, "kurir_instan", val_kurir_instan, "Total kurir instan (Go-Jek/Grab/Shopee Instant, AnterAja Sameday, Paxel)"],
                         [8, "jc_enabler", 13566, "Jet Commerce Enabler"],
                         [9, "jc_fulfilment", 4369, "Jet Commerce Fulfilment"],
                         [10, "other", 17, "Kategori lainnya"],
@@ -680,7 +690,6 @@ with st.container():
                     ]
                     df_metrics = pd.DataFrame(metrics_data, columns=["No", "Metric_Name", "Value", "Description"])
                     
-                    # 10. Lebar Row A1:XFD1 sama dengan 0.5 (tinggi baris diatur kecil untuk garis hitam)
                     worksheet_db.set_row(0, 4, black_divider)
 
                     def write_custom_table_autofit(df_table, start_row, start_col):
@@ -695,34 +704,15 @@ with st.container():
                             for c_idx, val in enumerate(row):
                                 worksheet_db.write(start_row + r_idx + 1, start_col + c_idx, val, cell_format_left if isinstance(val, str) else cell_format_db)
 
-                    # 1. No Metric_Name Value Description di A2:D2
                     write_custom_table_autofit(df_metrics, 1, 0)
-                    
-                    # 2. Kolom E Lebar 0.5 dengan Fill Kolom Hitam
                     worksheet_db.set_column(4, 4, 0.5, black_divider)
-                    
-                    # 3. No Brand Delivered Target di F2:I2
                     write_custom_table_autofit(df_brand, 1, 5)
-                    
-                    # 4. Kolom J Lebar 0.5 dengan Fill Kolom Hitam
                     worksheet_db.set_column(9, 9, 0.5, black_divider)
-                    
-                    # 5. No Courier_Name Total_Package Ranking di K2:N2
                     write_custom_table_autofit(df_kurir, 1, 10)
-                    
-                    # 6. Kolom O Lebar 0.5 dengan Fill Kolom Hitam
                     worksheet_db.set_column(14, 14, 0.5, black_divider)
-                    
-                    # 7. No Courier_Name Avg_Times_Proses_Kurir_to_Shipped di P2:R2
                     write_custom_table_autofit(df_kurir_manifest, 1, 15)
-                    
-                    # 8. Kolom S Lebar 0.5 dengan Fill Kolom Hitam
                     worksheet_db.set_column(18, 18, 0.5, black_divider)
-                    
-                    # 9. No Status_Manifest qty di T2:V2
                     write_custom_table_autofit(df_status, 1, 19)
-
-                    # Pembatas Tambahan & Summary Late Manifest by Late Proses By (X2:Z2)
                     worksheet_db.set_column(22, 22, 0.5, black_divider)
                     write_custom_table_autofit(df_late_manifest, 1, 23)
 
@@ -772,6 +762,25 @@ if 'processed_result' in st.session_state:
                         st.dataframe(untraceable_data[cols_to_show], use_container_width=True, hide_index=True)
             else:
                 st.info("🎉 Seluruh paket berstatus **Traceable** (0 Untraceable).")
+
+        # --- GRAFIK SUMMARY LATE PROSES BY DI WEB DASHBOARD ---
+        st.markdown("### 📈 Grafik Summary Late Proses By")
+        if 'Status Manifest' in res_df.columns and 'Late Proses By' in res_df.columns:
+            late_df_web = res_df[res_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late']
+            categories = ['System', 'Admin', 'Picker', 'Packer', 'Outbound', 'Kurir']
+            
+            if not late_df_web.empty:
+                counts_by_cat = late_df_web['Late Proses By'].astype(str).str.strip().value_counts()
+                chart_data = pd.DataFrame({
+                    'Qty Order': [int(counts_by_cat.get(cat, 0)) for cat in categories]
+                }, index=categories)
+                st.bar_chart(chart_data)
+            else:
+                chart_data = pd.DataFrame({'Qty Order': [0]*len(categories)}, index=categories)
+                st.bar_chart(chart_data)
+                st.info("ℹ️ Tidak ada data dengan status manifest 'Late'.")
+        else:
+            st.info("ℹ️ Kolom Status Manifest atau Late Proses By tidak ditemukan.")
 
         essential_cols = ['WMS Order', 'ERP Document Number', 'Tracking#/PRO#', 'Platform', 'Kurir', 'Status']
         empty_report = []
