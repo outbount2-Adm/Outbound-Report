@@ -632,7 +632,7 @@ with st.container():
                     
                     black_divider = workbook.add_format({'bg_color': '#000000'})
                     
-                    # --- PERBAIKAN KOLOM TARGET PADA TABEL BRAND (JIKA KOSONG OTOMATIS JADI "SK") ---
+                    # --- PERBAIKAN TOTAL TARGET BRAND (MENGHITUNG SELURUH 13.300 BARIS OPEN ORDER) ---
                     df_brand = final_df['Brand'].value_counts().reset_index()
                     df_brand.columns = ['Brand', 'Delivered']
                     df_brand.insert(0, 'No', range(1, len(df_brand) + 1))
@@ -645,7 +645,6 @@ with st.container():
                             for _, row in df_os_open.iterrows():
                                 sn = safe_key(row[col_store_os])
                                 if sn == "":
-                                    # Jika Store Number kosong, hitung sebagai SK
                                     os_mapped_brands.append("SK")
                                 else:
                                     store_info = master_store_db.get(sn, {})
@@ -655,7 +654,6 @@ with st.container():
                                     if b_val:
                                         os_mapped_brands.append(b_val)
                                     else:
-                                        # Jika Store Number tidak terdaftar di master, hitung sebagai SK
                                         os_mapped_brands.append("SK")
                             
                             if os_mapped_brands:
@@ -699,8 +697,8 @@ with st.container():
                     else:
                         df_kurir_manifest = pd.DataFrame(columns=['No', 'Courier_Name', 'Avg_Times_Proses_Kurir_to_Shipped'])
 
-                    col_ref_sum = next((c for c in df_os_open.columns if 'ref#' in c.lower()), None)
-                    val_target = df_os_open[col_ref_sum].astype(str).str.strip().replace('', np.nan).replace('nan', np.nan).dropna().nunique() if col_ref_sum else 0
+                    # Menyesuaikan nilai total target metrik agar sama persis dengan total baris di file Open Order Summary (13.300)
+                    val_target = len(df_os_open) if not df_os_open.empty else 0
                     val_delivered = len(final_df)
                     val_delivery_rate = round((val_delivered / val_target * 100), 2) if val_target > 0 else 0.0
 
@@ -783,7 +781,7 @@ with st.container():
                     metrics_data = [
                         [1, "delivery_rate", val_delivery_rate, "Persentase delivery rate"],
                         [2, "delivered", f"{val_delivered:,}", "Total order di sheet Laporan_WMS"],
-                        [3, "target", f"{val_target:,}", "Count unique Ref# dari file Order Summary Export OPEN"],
+                        [3, "target", f"{val_target:,}", "Total baris dari file Order Summary Export OPEN"],
                         [4, "pending_order", f"{val_pending:,}", "Jumlah order pending"],
                         [5, "avg_shipped", "0:24:41", "Rata-rata waktu ke shipped"],
                         [6, "avg_handover", "4:20:20", "Rata-rata waktu ke handover"],
