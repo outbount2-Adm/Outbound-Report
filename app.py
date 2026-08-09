@@ -341,6 +341,9 @@ with st.container():
                 res['Brand'] = np.where(brand_is_na & is_platform_other, "SK", np.where(brand_is_na, "AceKid", res['Brand']))
                 res['Brand 2'] = np.where(brand2_is_na & is_platform_other, "SK", np.where(brand2_is_na, "AceKid", res['Brand 2']))
 
+                # Mengisi Kolom Admin dengan current_admin dari session_state
+                res['Admin'] = current_admin
+
                 progress_bar.progress(70, text="Processing... (Kalkulasi selisih waktu & SLA) [70%]")
                 ho_col_map = {}
                 for c in df_ho.columns:
@@ -399,12 +402,9 @@ with st.container():
                     def safe_ho_parse(val):
                         if pd.isna(val): return pd.NaT
                         if isinstance(val, (int, float)):
-                            try:
-                                return pd.to_datetime('1899-12-30') + pd.to_timedelta(val, unit='D')
-                            except:
-                                return pd.NaT
-                        if isinstance(val, datetime.datetime):
-                            return val
+                            try: return pd.to_datetime('1899-12-30') + pd.to_timedelta(val, unit='D')
+                            except: return pd.NaT
+                        if isinstance(val, datetime.datetime): return val
                         return pd.to_datetime(val, errors='coerce')
                     
                     parsed_ho = df_ho[ho_col_map['Waktu_HO']].apply(safe_ho_parse)
@@ -492,6 +492,8 @@ with st.container():
                     return pd.Series(sec_list)
 
                 progress_bar.progress(90, text="Processing... (Menyusun laporan akhir & Excel) [90%]")
+                
+                # Memperbaiki daftar kolom akhir agar tidak terjadi duplikasi nama 'Admin' dan 'Kurir'
                 kolom_final = [
                     'WMS Order', 'ERP Document Number', 'Tracking#/PRO#', 'PlatformOrder', 'Staged User', 
                     'Platform', 'Brand', 'Brand 2', 'Admin', 'Load', 'Kurir', 'Loader', 'Tanggal Handover', 
@@ -501,13 +503,13 @@ with st.container():
                     'End Ship Date to Shpped Date', 'Kota', 'Provinsi', 'Status', 'Payment Menthood', 
                     'total order amount', 'Dokumen', 'Attachment', 'Times Proses Kurir', 'Times Proses Kurir to Shpped Date', 
                     'Status Manifest', 'Status Late', 'Remark Late', 'Pay-Created', 'Created-Released', 'Released-Pick', 
-                    'Pick-Pack', 'Pack-Collect', 'Collect-Manifest', 'Manifest-Endshipdate', 'Max', 'System', 'Admin', 
-                    'Picker', 'Packer', 'Outbound', 'Kurir', 'Late Proses Data Dummy', 'Late Proses By'
+                    'Pick-Pack', 'Pack-Collect', 'Collect-Manifest', 'Manifest-Endshipdate', 'Max', 'System', 
+                    'Picker', 'Packer', 'Outbound', 'Late Proses By'
                 ]
                 
                 for col in kolom_final:
                     if col not in res.columns: res[col] = np.nan
-                final_df = res[kolom_final].drop(columns=['Late Proses Data Dummy'], errors='ignore')
+                final_df = res[kolom_final].copy()
                 final_df = final_df.loc[:, ~final_df.columns.duplicated()]
 
                 master_df = dfs.get('master', pd.DataFrame())
@@ -545,6 +547,7 @@ with st.container():
 
                         excel_row = row_num + 2
                         
+                        # Formula penentuan Max dan SLA Boolean
                         worksheet_wms.write_formula(row_num + 1, 46, f"=MAX(IFERROR(VALUE(AN{excel_row}),0), IFERROR(VALUE(AO{excel_row}),0), IFERROR(VALUE(AP{excel_row}),0), IFERROR(VALUE(AQ{excel_row}),0), IFERROR(VALUE(AR{excel_row}),0), IFERROR(VALUE(AS{excel_row}),0), IFERROR(VALUE(AT{excel_row}),0))", format_time)
                         worksheet_wms.write_formula(row_num + 1, 47, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AN{excel_row}), FALSE))")
                         worksheet_wms.write_formula(row_num + 1, 48, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AO{excel_row}), FALSE))")
