@@ -558,10 +558,9 @@ with st.container():
                     workbook = writer.book
                     worksheet_wms = writer.sheets['Laporan_WMS']
                     
-                    # FORMAT UNTUK SHEET LAPORAN_WMS (Auto-fit & Rata Tengah)
                     format_header = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1, 'align': 'center', 'valign': 'vcenter'})
                     format_time = workbook.add_format({'num_format': 'hh:mm:ss', 'border': 1, 'align': 'center', 'valign': 'vcenter'})
-                    cell_format_center = workbook.add_format({'align': 'center', 'valign': 'vcenter'}) # Format rata tengah/tengah
+                    cell_format_center = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
                     
                     col_idx_track = list(df_to_export.columns).index('Tracking#/PRO#')
                     col_idx_plat = list(df_to_export.columns).index('PlatformOrder')
@@ -569,8 +568,8 @@ with st.container():
                     for row_num in range(len(df_to_export)):
                         val_track = str(df_to_export.iloc[row_num]['Tracking#/PRO#'])
                         val_plat = str(df_to_export.iloc[row_num]['PlatformOrder'])
-                        if val_track != 'nan' and val_track != '': worksheet_wms.write_string(row_num + 1, col_idx_track, val_track)
-                        if val_plat != 'nan' and val_plat != '': worksheet_wms.write_string(row_num + 1, col_idx_plat, val_plat)
+                        if val_track != 'nan' and val_track != '': worksheet_wms.write_string(row_num + 1, col_idx_track, val_track, cell_format_center)
+                        if val_plat != 'nan' and val_plat != '': worksheet_wms.write_string(row_num + 1, col_idx_plat, val_plat, cell_format_center)
 
                         excel_row = row_num + 2
                         
@@ -592,26 +591,21 @@ with st.container():
                         )
                         worksheet_wms.write_formula(row_num + 1, 53, formula_late_by)
 
-                    # LOOP UNTUK HEADER & AUTO-FIT & RATA TENGAH
+                    # Auto-fit kolom dan ratatengah untuk Laporan_WMS berdasarkan header & data
                     for col_num, col_name in enumerate(df_to_export.columns):
-                        # Timpa header dengan format khusus
                         worksheet_wms.write(0, col_num, col_name, format_header)
-                        
-                        # Hitung lebar maksimal antara Header vs Teks Data Terpanjang
-                        col_data_len = df_to_export.iloc[:, col_num].astype(str).map(len).max() if not df_to_export.empty else 0
+                        col_data_len = df_to_export.iloc[:, col_num].astype(str).str.len().max() if not df_to_export.empty else 0
                         header_len = len(str(col_name))
                         max_len = max(header_len, col_data_len)
-                        
-                        # Set lebar kolom dan format rata tengah untuk seluruh kolom
-                        worksheet_wms.set_column(col_num, col_num, max_len + 3, cell_format_center)
+                        worksheet_wms.set_column(col_num, col_num, max_len + 4, cell_format_center)
 
                     # ==========================================
-                    # SHEET DB (DASHBOARD SUMMARY) - TERBARU
+                    # SHEET DB (DASHBOARD SUMMARY) - DIPERBAIKI
                     # ==========================================
                     worksheet_db = workbook.add_worksheet('DB')
-                    header_format_db = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1, 'align': 'center'})
-                    cell_format_db = workbook.add_format({'border': 1, 'align': 'center'})
-                    cell_format_left = workbook.add_format({'border': 1, 'align': 'left'})
+                    header_format_db = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1, 'align': 'center', 'valign': 'vcenter'})
+                    cell_format_db = workbook.add_format({'border': 1, 'align': 'center', 'valign': 'vcenter'})
+                    cell_format_left = workbook.add_format({'border': 1, 'align': 'left', 'valign': 'vcenter'})
                     
                     black_divider = workbook.add_format({'bg_color': '#000000'})
                     
@@ -629,6 +623,16 @@ with st.container():
                     df_status = final_df['Status Manifest'].replace('', 'Unknown').value_counts().reset_index()
                     df_status.columns = ['Status_Manifest', 'qty']
                     df_status.insert(0, 'No', range(1, len(df_status) + 1))
+
+                    # Summary Late Manifest berdasarkan Late Proses By
+                    df_late_manifest = pd.DataFrame(columns=['No', 'Late_Proses_By', 'qty'])
+                    if 'Status Manifest' in final_df.columns and 'Late Proses By' in final_df.columns:
+                        late_df = final_df[final_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late']
+                        if not late_df.empty:
+                            grouped_late = late_df['Late Proses By'].replace('', 'Unknown').fillna('Unknown').value_counts().reset_index()
+                            grouped_late.columns = ['Late_Proses_By', 'qty']
+                            grouped_late.insert(0, 'No', range(1, len(grouped_late) + 1))
+                            df_late_manifest = grouped_late
 
                     df_kurir_manifest = pd.DataFrame()
                     if 'Kurir' in final_df.columns and 'Times Proses Kurir to Shpped Date' in final_df.columns:
@@ -676,29 +680,51 @@ with st.container():
                     ]
                     df_metrics = pd.DataFrame(metrics_data, columns=["No", "Metric_Name", "Value", "Description"])
                     
-                    worksheet_db.set_row(0, 4, black_divider) 
+                    # 10. Lebar Row A1:XFD1 sama dengan 0.5 (tinggi baris diatur kecil untuk garis hitam)
+                    worksheet_db.set_row(0, 4, black_divider)
 
                     def write_custom_table_autofit(df_table, start_row, start_col):
                         for c_idx, col_name in enumerate(df_table.columns):
                             worksheet_db.write(start_row, start_col + c_idx, col_name, header_format_db)
                             col_data = df_table.iloc[:, c_idx].astype(str)
-                            max_val_len = col_data.map(len).max() if not col_data.empty else 0
+                            max_val_len = col_data.str.len().max() if not col_data.empty else 0
                             max_len = max(len(str(col_name)), max_val_len)
-                            worksheet_db.set_column(start_col + c_idx, start_col + c_idx, max_len + 3)
+                            worksheet_db.set_column(start_col + c_idx, start_col + c_idx, max_len + 4)
 
                         for r_idx, row in enumerate(df_table.values):
                             for c_idx, val in enumerate(row):
                                 worksheet_db.write(start_row + r_idx + 1, start_col + c_idx, val, cell_format_left if isinstance(val, str) else cell_format_db)
 
+                    # 1. No Metric_Name Value Description di A2:D2
                     write_custom_table_autofit(df_metrics, 1, 0)
+                    
+                    # 2. Kolom E Lebar 0.5 dengan Fill Kolom Hitam
                     worksheet_db.set_column(4, 4, 0.5, black_divider)
+                    
+                    # 3. No Brand Delivered Target di F2:I2
                     write_custom_table_autofit(df_brand, 1, 5)
+                    
+                    # 4. Kolom J Lebar 0.5 dengan Fill Kolom Hitam
                     worksheet_db.set_column(9, 9, 0.5, black_divider)
+                    
+                    # 5. No Courier_Name Total_Package Ranking di K2:N2
                     write_custom_table_autofit(df_kurir, 1, 10)
+                    
+                    # 6. Kolom O Lebar 0.5 dengan Fill Kolom Hitam
                     worksheet_db.set_column(14, 14, 0.5, black_divider)
+                    
+                    # 7. No Courier_Name Avg_Times_Proses_Kurir_to_Shipped di P2:R2
                     write_custom_table_autofit(df_kurir_manifest, 1, 15)
+                    
+                    # 8. Kolom S Lebar 0.5 dengan Fill Kolom Hitam
                     worksheet_db.set_column(18, 18, 0.5, black_divider)
+                    
+                    # 9. No Status_Manifest qty di T2:V2
                     write_custom_table_autofit(df_status, 1, 19)
+
+                    # Pembatas Tambahan & Summary Late Manifest by Late Proses By (X2:Z2)
+                    worksheet_db.set_column(22, 22, 0.5, black_divider)
+                    write_custom_table_autofit(df_late_manifest, 1, 23)
 
                 st.session_state['excel_data'] = output.getvalue()
                 progress_bar.progress(100, text="Processing Selesai! (100%)")
