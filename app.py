@@ -315,7 +315,7 @@ with st.container():
                 track_empty = res['Tracking#/PRO#'].isna() | (res['Tracking#/PRO#'].astype(str).str.strip() == '') | (res['Tracking#/PRO#'].astype(str).str.strip().str.lower() == 'nan')
                 res['Tracking#/PRO#'] = np.where(track_empty & is_platform_other, res['WMS Order'], res['Tracking#/PRO#'])
 
-                platord_empty = res['PlatformOrder'].isna() | (res['PlatformOrder'].astype(str).str.strip() == '') | (res['PlatformOrder'].astype(str).str.lower() == 'nan')
+                platord_empty = res['PlatformOrder'].isna() | (res['PlatformOrder'].astype(str).str.strip() == '') | (res['PlatformOrder'].astype(str).str.strip().str.lower() == 'nan')
                 res['PlatformOrder'] = np.where(platord_empty & is_platform_other, res['WMS Order'], res['PlatformOrder'])
 
                 df_op = dfs['op_log']
@@ -941,8 +941,6 @@ if 'processed_result' in st.session_state:
                 st.markdown("---")
 
                 # 2. TABEL STATISTIK / CROSS-TABULATION
-                st.markdown("**Tabel Statistik Keterlambatan (Kurir vs Penyebab Keterlambatan):**")
-                
                 stat_df = pd.pivot_table(
                     late_df_web,
                     index='Kurir',
@@ -952,7 +950,6 @@ if 'processed_result' in st.session_state:
                     fill_value=0
                 )
                 
-                # Membersihkan nama level kolom agar tidak bentrok dengan index
                 stat_df.columns.name = None
                 
                 expected_cols = ['Admin', 'Outbound', 'Packer', 'Picker', 'System', 'Kurir']
@@ -971,12 +968,16 @@ if 'processed_result' in st.session_state:
                 if 'index' in stat_df.columns:
                     stat_df = stat_df.drop(columns=['index'])
                 
-                stat_df = stat_df.reset_index()
+                # Aman dari error cannot insert Kurir, already exists
+                if 'Kurir' not in stat_df.columns:
+                    stat_df = stat_df.reset_index()
+                
                 if 'index' in stat_df.columns and 'Kurir' in stat_df.columns:
                     stat_df = stat_df.drop(columns=['index'], errors='ignore')
 
                 stat_df = stat_df.sort_values(by='Total Late', ascending=False).reset_index(drop=True)
                 
+                st.markdown("**Tabel Statistik Keterlambatan (Kurir vs Penyebab Keterlambatan):**")
                 st.dataframe(stat_df, use_container_width=True, hide_index=True)
             else:
                 st.info("ℹ️ Tidak ada data dengan status manifest 'Late'.")
