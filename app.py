@@ -939,35 +939,37 @@ if 'processed_result' in st.session_state:
                 stat_df['Total Late'] = stat_df[expected_cols].sum(axis=1)
                 stat_df = stat_df.sort_values(by='Total Late', ascending=False).reset_index(drop=True)
 
-                st.markdown("**1. Tabel Statistik Keterlambatan (Jumlah Unit - Terbanyak ke Terdikit):**")
+                st.markdown("**Tabel Statistik Keterlambatan:**")
                 stat_df_display = stat_df.copy()
                 stat_df_display.columns.name = None
                 st.dataframe(stat_df_display, use_container_width=True, hide_index=True)
                 
                 st.markdown("---")
-                st.markdown("**2. Statistik Persentase (%) & Progress Bar per Kurir:**")
                 
-                # Render visual progress bars for each courier based on Total Late
-                total_all_late = stat_df['Total Late'].sum()
-                if total_all_late > 0:
-                    for _, row in stat_df.iterrows():
-                        courier_name = row['Nama Kurir']
-                        courier_total = row['Total Late']
-                        pct = (courier_total / total_all_late) * 100
-                        
-                        st.markdown(f"""
-                        <div style="margin-bottom: 12px;">
-                            <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 600; color: #1F2937; margin-bottom: 4px;">
-                                <span>{courier_name} ({courier_total} Unit)</span>
-                                <span style="color: #2563EB;">{pct:.2f}%</span>
+                # Toggle Show / Hide untuk Statistik Persentase (%)
+                show_percentage = st.toggle("Show Statistik Persentase (%)", value=True)
+                if show_percentage:
+                    st.markdown("**Statistik Persentase (%)**")
+                    total_all_late = stat_df['Total Late'].sum()
+                    if total_all_late > 0:
+                        for _, row in stat_df.iterrows():
+                            courier_name = row['Nama Kurir']
+                            courier_total = row['Total Late']
+                            pct = (courier_total / total_all_late) * 100
+                            
+                            st.markdown(f"""
+                            <div style="margin-bottom: 12px;">
+                                <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 600; color: #1F2937; margin-bottom: 4px;">
+                                    <span>{courier_name} ({courier_total} Unit)</span>
+                                    <span style="color: #2563EB;">{pct:.2f}%</span>
+                                </div>
+                                <div style="background-color: #E5E7EB; border-radius: 6px; height: 10px; width: 100%; overflow: hidden;">
+                                    <div style="background: linear-gradient(90deg, #3B82F6 0%, #1D4ED8 100%); height: 10px; border-radius: 6px; width: {pct}%;"></div>
+                                </div>
                             </div>
-                            <div style="background-color: #E5E7EB; border-radius: 6px; height: 10px; width: 100%; overflow: hidden;">
-                                <div style="background: linear-gradient(90deg, #3B82F6 0%, #1D4ED8 100%); height: 10px; border-radius: 6px; width: {pct}%;"></div>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                else:
-                    st.info("ℹ️ Tidak ada data keterlambatan.")
+                            """, unsafe_allow_html=True)
+                    else:
+                        st.info("ℹ️ Tidak ada data keterlambatan.")
             else:
                 st.info("ℹ️ Tidak ada data dengan status manifest 'Late'.")
         else:
