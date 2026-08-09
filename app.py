@@ -903,7 +903,20 @@ if 'processed_result' in st.session_state:
     tab1, tab2, tab3 = st.tabs(["📈 Analytics Kurir", "🔍 Untraceable Check", "📋 Data Preview"])
     
     with tab1:
-        st.markdown("### Analisis Keterlambatan per Kurir (Status Manifest Late)")
+        # Layout Header dengan Judul di Kiri dan Radio Button Opsi di Kanan
+        col_title, col_radio = st.columns([2.5, 1.5])
+        with col_title:
+            st.markdown("### Analisis Keterlambatan per Kurir (Status Manifest Late)")
+        with col_radio:
+            view_mode = st.radio(
+                "Pilih Tampilan",
+                ["Tabel Statistik Keterlambatan", "Statistik Persentase (%)"],
+                horizontal=True,
+                label_visibility="collapsed"
+            )
+        
+        st.markdown("<hr style='margin: 5px 0 15px 0; border: none; border-top: 1px solid #E8E8E8;'>", unsafe_allow_html=True)
+
         if 'Status Manifest' in res_df.columns and 'Late Proses By' in res_df.columns and 'Kurir' in res_df.columns:
             late_df_web = res_df[res_df['Status Manifest'].astype(str).str.strip().str.lower() == 'late'].copy()
             
@@ -938,16 +951,6 @@ if 'processed_result' in st.session_state:
                 
                 stat_df['Total Late'] = stat_df[expected_cols].sum(axis=1)
                 stat_df = stat_df.sort_values(by='Total Late', ascending=False).reset_index(drop=True)
-
-                # Radio button untuk memilih tampilan (Tabel Statistik Keterlambatan atau Statistik Persentase (%))
-                view_mode = st.radio(
-                    "Pilih Tampilan Statistik",
-                    ["Tabel Statistik Keterlambatan", "Statistik Persentase (%)"],
-                    horizontal=True,
-                    label_visibility="collapsed"
-                )
-                
-                st.markdown("---")
 
                 if view_mode == "Tabel Statistik Keterlambatan":
                     stat_df_display = stat_df.copy()
