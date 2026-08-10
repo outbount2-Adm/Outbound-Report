@@ -371,7 +371,6 @@ with st.container():
                 
                 if 'Tgl_HO' in ho_col_map:
                     raw_tgl_ho = df_ho[ho_col_map['Tgl_HO']].apply(lambda val: f"{val.month:02d}/{val.day:02d}/{val.year}" if isinstance(val, datetime.datetime) else str(val))
-                    # Tetap simpan sebagai datetime object agar mempermudah pemformatan Tanggal di Excel menjadi mm/dd/yyyy
                     res['Tanggal Handover'] = pd.to_datetime(raw_tgl_ho, errors='coerce', dayfirst=True)
                 else:
                     res['Tanggal Handover'] = np.nan
@@ -439,7 +438,7 @@ with st.container():
                 def to_dt(col_name): 
                     return res.get('Handover_Date_Raw') if col_name == 'Handover Date' else pd.to_datetime(res.get(col_name), errors='coerce')
 
-                # Logika Waktu Durasi: Konversi Langsung menjadi pecahan Float Hari untuk support Format Time murni Excel
+                # Logika Waktu Durasi sesuai Perintah yang Benar:
                 res['Packing to Shpped Date'] = (to_dt('Shipped Date') - to_dt('Packing Complete')).dt.total_seconds().fillna(0) / 86400.0
                 res['Packing to Handover'] = (to_dt('Handover Date') - to_dt('Packing Complete')).dt.total_seconds().fillna(0) / 86400.0
                 res['Shipped Date to Handover'] = (to_dt('Handover Date') - to_dt('Shipped Date')).dt.total_seconds().fillna(0) / 86400.0
@@ -579,11 +578,9 @@ with st.container():
                     workbook = writer.book
                     worksheet_wms = writer.sheets['Laporan_WMS']
                     
-                    # 5. Format Column Default (TANPA BORDER agar tak ter-border penuh 1 juta row)
                     format_header = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1, 'align': 'center', 'valign': 'vcenter'})
                     cell_format_col = workbook.add_format({'align': 'center', 'valign': 'vcenter'})
                     
-                    # 3. Format khusus untuk data range sesungguhnya (Border mengikuti data limits, format time HH:MM:SS)
                     format_data_border = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
                     format_time_border = workbook.add_format({'num_format': '[hh]:mm:ss', 'align': 'center', 'valign': 'vcenter', 'border': 1})
                     format_date_border = workbook.add_format({'num_format': 'mm/dd/yyyy', 'align': 'center', 'valign': 'vcenter', 'border': 1})
@@ -595,7 +592,6 @@ with st.container():
                         'Pack-Collect', 'Collect-Manifest', 'Manifest-Endshipdate', 'Max'
                     ]
 
-                    # Tulis Header dan Resize Kolom (tanpa mem-border full column)
                     for col_num, col_name in enumerate(df_to_export.columns):
                         worksheet_wms.write(0, col_num, col_name, format_header)
                         col_data_len = df_to_export.iloc[:, col_num].astype(str).str.len().max() if not df_to_export.empty else 0
@@ -603,7 +599,6 @@ with st.container():
                         max_len = max(header_len, col_data_len)
                         worksheet_wms.set_column(col_num, col_num, max_len + 4, cell_format_col)
 
-                    # Tulis ulang dan format spesifik HANYA batas row/col datanya (Border Akurat + Tanggal + Waktu)
                     for row_num in range(len(df_to_export)):
                         for col_num, col_name in enumerate(df_to_export.columns):
                             val = df_to_export.iat[row_num, col_num]
@@ -630,7 +625,7 @@ with st.container():
                     
                     black_divider = workbook.add_format({'bg_color': '#000000'})
                     
-                    df_brand = final_df['Brand'].value_counts().reset_index()
+                    df_brand = final_df['Brand 2'].value_counts().reset_index()
                     df_brand.columns = ['Brand', 'Delivered']
                     
                     df_os_open = dfs.get('order_summary_open', dfs.get('order_summary', pd.DataFrame()))
@@ -662,7 +657,6 @@ with st.container():
                     else:
                         df_brand['Target'] = 0
                         
-                    # 7. Sortir Brand Sheet DB berdasar Delivered Terbesar ke Terdikit
                     df_brand = df_brand.sort_values(by='Delivered', ascending=False).reset_index(drop=True)
                     df_brand.insert(0, 'No', range(1, len(df_brand) + 1))
 
@@ -688,7 +682,7 @@ with st.container():
                     df_kurir_manifest = pd.DataFrame()
                     if 'Kurir' in final_df.columns and 'Times Proses Kurir to Shpped Date' in final_df.columns:
                         temp_k = final_df[['Kurir', 'Times Proses Kurir to Shpped Date']].copy()
-                        temp_k['sec'] = temp_k['Times Proses Kurir to Shpped Date'] * 86400  # Kembalikan ke seconds untuk dikalkulasi
+                        temp_k['sec'] = temp_k['Times Proses Kurir to Shpped Date'] * 86400
                         grouped_k = temp_k.groupby('Kurir')['sec'].mean().reset_index()
                         grouped_k = grouped_k.sort_values(by='sec', ascending=True).reset_index(drop=True)
                         grouped_k['Avg_Process_Time'] = grouped_k['sec'].apply(lambda s: f"{int(s)//3600}:{(int(s)%3600)//60:02d}:{int(s)%60:02d}" if pd.notna(s) and s > 0 else "0:00:00")
@@ -767,7 +761,6 @@ with st.container():
                     val_other = int(is_other.sum())
                     val_jc_enabler = int(is_enabler.sum())
 
-                    # 6. Mengambil summary Pending Cut Off Qty secara akurat
                     val_pending = 0
                     if not raw_daily_df.empty:
                         col0 = raw_daily_df.columns[0]; col1 = raw_daily_df.columns[1] if len(raw_daily_df.columns) > 1 else col0
@@ -779,13 +772,28 @@ with st.container():
                     val_traceable = int(final_df['Master_Tracking'].eq('traceable').sum())
                     val_untraceable = int(final_df['Master_Tracking'].eq('untraceable').sum())
 
+                    # --- KALKULASI DINAMIS AVG SHIPPED & HANDOVER SESUAI FORMULA YANG BENAR ---
+                    dt_created = to_dt('Created Time')
+                    dt_shipped = to_dt('Shipped Date')
+                    dt_handover = to_dt('Handover Date')
+                    
+                    delta_shipped_sec = (dt_shipped - dt_created).dt.total_seconds()
+                    avg_ship_val = delta_shipped_sec[delta_shipped_sec > 0].mean() if not delta_shipped_sec[delta_shipped_sec > 0].empty else 0
+                    if pd.isna(avg_ship_val): avg_ship_val = 0
+                    str_avg_shipped = f"{int(avg_ship_val)//3600}:{(int(avg_ship_val)%3600)//60:02d}:{int(avg_ship_val)%60:02d}"
+                    
+                    delta_handover_sec = (dt_handover - dt_created).dt.total_seconds()
+                    avg_ho_val = delta_handover_sec[delta_handover_sec > 0].mean() if not delta_handover_sec[delta_handover_sec > 0].empty else 0
+                    if pd.isna(avg_ho_val): avg_ho_val = 0
+                    str_avg_handover = f"{int(avg_ho_val)//3600}:{(int(avg_ho_val)%3600)//60:02d}:{int(avg_ho_val)%60:02d}"
+
                     metrics_data = [
                         [1, "delivery_rate", val_delivery_rate, "Persentase delivery rate"],
                         [2, "delivered", f"{val_delivered:,}", "Total order di sheet Laporan_WMS"],
                         [3, "target", f"{val_target:,}", "Total baris dari file Order Summary Export OPEN"],
                         [4, "pending_order", f"{val_pending:,}", "Jumlah order pending"],
-                        [5, "avg_shipped", "0:24:41", "Rata-rata waktu ke shipped"],
-                        [6, "avg_handover", "4:20:20", "Rata-rata waktu ke handover"],
+                        [5, "avg_shipped", str_avg_shipped, "Rata-rata waktu ke shipped"],
+                        [6, "avg_handover", str_avg_handover, "Rata-rata waktu ke handover"],
                         [7, "kurir_instan", val_kurir_instan, "Total kurir instan"],
                         [8, "jc_enabler", val_jc_enabler, "Jet Commerce Enabler"],
                         [9, "jc_fulfilment", val_jc_fulfilment, "Jet Commerce Fulfilment"],
