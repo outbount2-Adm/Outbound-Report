@@ -371,7 +371,8 @@ with st.container():
                 
                 if 'Tgl_HO' in ho_col_map:
                     raw_tgl_ho = df_ho[ho_col_map['Tgl_HO']].apply(lambda val: f"{val.month:02d}/{val.day:02d}/{val.year}" if isinstance(val, datetime.datetime) else str(val))
-                    res['Tanggal Handover'] = pd.to_datetime(raw_tgl_ho, errors='coerce', dayfirst=True).dt.strftime('%m/%d/%Y')
+                    # Tetap simpan sebagai datetime object agar mempermudah pemformatan Tanggal di Excel menjadi mm/dd/yyyy
+                    res['Tanggal Handover'] = pd.to_datetime(raw_tgl_ho, errors='coerce', dayfirst=True)
                 else:
                     res['Tanggal Handover'] = np.nan
                 
@@ -438,18 +439,12 @@ with st.container():
                 def to_dt(col_name): 
                     return res.get('Handover_Date_Raw') if col_name == 'Handover Date' else pd.to_datetime(res.get(col_name), errors='coerce')
 
-                def format_timedelta_hhmmss(td_series):
-                    if td_series is None: return ""
-                    seconds = td_series.dt.total_seconds().fillna(0).astype(int)
-                    is_neg = seconds < 0
-                    seconds = abs(seconds)
-                    res_str = (seconds // 3600).astype(str).str.zfill(2) + ":" + ((seconds % 3600) // 60).astype(str).str.zfill(2) + ":" + (seconds % 60).astype(str).str.zfill(2)
-                    return np.where(td_series.isna(), "", np.where(is_neg, "-" + res_str, res_str))
-
-                res['Packing to Shpped Date'] = format_timedelta_hhmmss(to_dt('Shipped Date') - to_dt('Packing Complete'))
-                res['Packing to Handover'] = format_timedelta_hhmmss(to_dt('Handover Date') - to_dt('Packing Complete'))
-                res['Shipped Date to Handover'] = format_timedelta_hhmmss(to_dt('Handover Date') - to_dt('Shipped Date'))
-                res['End Ship Date to Shpped Date'] = format_timedelta_hhmmss(to_dt('End Ship Date') - to_dt('Shipped Date'))
+                # Logika Waktu Durasi: Konversi Langsung menjadi pecahan Float Hari untuk support Format Time murni Excel
+                res['Packing to Shpped Date'] = (to_dt('Shipped Date') - to_dt('Packing Complete')).dt.total_seconds().fillna(0) / 86400.0
+                res['Packing to Handover'] = (to_dt('Handover Date') - to_dt('Packing Complete')).dt.total_seconds().fillna(0) / 86400.0
+                res['Shipped Date to Handover'] = (to_dt('Handover Date') - to_dt('Shipped Date')).dt.total_seconds().fillna(0) / 86400.0
+                res['End Ship Date to Shpped Date'] = (to_dt('End Ship Date') - to_dt('Shipped Date')).dt.total_seconds().fillna(0) / 86400.0
+                res['Times Proses Kurir to Shpped Date'] = (to_dt('Times Proses Kurir') - to_dt('Shipped Date')).dt.total_seconds().fillna(0) / 86400.0
 
                 res['Kota'] = res[next((c for c in res.columns if 'ship to city' in c.lower()), None)] if next((c for c in res.columns if 'ship to city' in c.lower()), None) else np.nan
                 res['Provinsi'] = res[next((c for c in res.columns if 'ship to st' in c.lower() or 'prov' in c.lower()), None)] if next((c for c in res.columns if 'ship to st' in c.lower() or 'prov' in c.lower()), None) else np.nan
@@ -493,45 +488,40 @@ with st.container():
                 res['Attachment'] = df_ho[ho_col_map.get('Attachment', None)].apply(lambda x: str(x).strip() if pd.notna(x) else '') if ho_col_map.get('Attachment', None) else np.nan
                 res['Dokumen'] = np.where(res['Attachment'].replace({0: np.nan, '0': np.nan, '': np.nan}).isna(), 'Not yet Input', 'YES')
 
-                res['Times Proses Kurir to Shpped Date'] = format_timedelta_hhmmss(to_dt('Times Proses Kurir') - to_dt('Shipped Date'))
                 plat_cond = res.get('Platform', pd.Series(['']*len(res))).astype(str).str.lower().isin(['shopee', 'tiktok'])
                 ai_val, w_val = to_dt('Times Proses Kurir'), to_dt('End Ship Date')
                 res['Status Manifest'] = np.where(ai_val.isna() | w_val.isna(), "", np.where(plat_cond, np.where(ai_val > w_val, "Late", "On Time"), "On Time"))
 
                 res['Status Late'] = np.nan; res['Remark Late'] = np.nan
-                res['Pay-Created'] = format_timedelta_hhmmss(to_dt('Created Time') - to_dt('Ordered Date'))
-                res['Created-Released'] = format_timedelta_hhmmss(to_dt('Picking Task Created Time') - to_dt('Created Time'))
-                res['Released-Pick'] = format_timedelta_hhmmss(to_dt('pickCompletedTime - Released Date Pack') - to_dt('Picking Task Created Time'))
-                res['Pick-Pack'] = format_timedelta_hhmmss(to_dt('Packing Complete') - to_dt('pickCompletedTime - Released Date Pack'))
-                res['Pack-Collect'] = format_timedelta_hhmmss(to_dt('Shipped Date') - to_dt('Packing Complete'))
-                res['Collect-Manifest'] = format_timedelta_hhmmss(to_dt('Times Proses Kurir') - to_dt('Shipped Date'))
-                res['Manifest-Endshipdate'] = format_timedelta_hhmmss(to_dt('End Ship Date') - to_dt('Times Proses Kurir'))
-
-                def get_safe_seconds(td_str_series):
-                    sec_list = []
-                    for val in td_str_series:
-                        if pd.isna(val) or str(val).strip() in ['', 'NaT']:
-                            sec_list.append(0.0); continue
-                        val_str = str(val).strip()
-                        sign = -1 if val_str.startswith('-') else 1
-                        parts = val_str.replace('-', '').split(':')
-                        try:
-                            if len(parts) == 3:
-                                sec_list.append(sign * (float(parts[0] or 0) * 3600 + float(parts[1] or 0) * 60 + float(parts[2] or 0)))
-                            else: sec_list.append(0.0)
-                        except: sec_list.append(0.0)
-                    return pd.Series(sec_list)
-
-                sec_an = get_safe_seconds(res['Pay-Created'])
-                sec_ao = get_safe_seconds(res['Created-Released'])
-                sec_ap = get_safe_seconds(res['Released-Pick'])
-                sec_aq = get_safe_seconds(res['Pick-Pack'])
-                sec_ar = get_safe_seconds(res['Pack-Collect'])
-                sec_as = get_safe_seconds(res['Collect-Manifest'])
-                sec_at = get_safe_seconds(res['Manifest-Endshipdate'])
+                
+                # Kalkulasi Durasi dalam Satuan Seconds Murni
+                sec_an = (to_dt('Created Time') - to_dt('Ordered Date')).dt.total_seconds().fillna(0)
+                sec_ao = (to_dt('Picking Task Created Time') - to_dt('Created Time')).dt.total_seconds().fillna(0)
+                sec_ap = (to_dt('pickCompletedTime - Released Date Pack') - to_dt('Picking Task Created Time')).dt.total_seconds().fillna(0)
+                sec_aq = (to_dt('Packing Complete') - to_dt('pickCompletedTime - Released Date Pack')).dt.total_seconds().fillna(0)
+                sec_ar = (to_dt('Shipped Date') - to_dt('Packing Complete')).dt.total_seconds().fillna(0)
+                sec_as = (to_dt('Times Proses Kurir') - to_dt('Shipped Date')).dt.total_seconds().fillna(0)
+                sec_at = (to_dt('End Ship Date') - to_dt('Times Proses Kurir')).dt.total_seconds().fillna(0)
 
                 max_sec = np.maximum.reduce([sec_an, sec_ao, sec_ap, sec_aq, sec_ar, sec_as, sec_at])
 
+                # Menerapkan Paste Value & Format Float time
+                res['Pay-Created'] = sec_an / 86400.0
+                res['Created-Released'] = sec_ao / 86400.0
+                res['Released-Pick'] = sec_ap / 86400.0
+                res['Pick-Pack'] = sec_aq / 86400.0
+                res['Pack-Collect'] = sec_ar / 86400.0
+                res['Collect-Manifest'] = sec_as / 86400.0
+                res['Manifest-Endshipdate'] = sec_at / 86400.0
+                res['Max'] = max_sec / 86400.0
+
+                res['System'] = np.where((max_sec > 0) & (max_sec == sec_an), True, False)
+                res['Admin '] = np.where((max_sec > 0) & (max_sec == sec_ao), True, False)
+                res['Picker'] = np.where((max_sec > 0) & (max_sec == sec_ap), True, False)
+                res['Packer'] = np.where((max_sec > 0) & (max_sec == sec_aq), True, False)
+                res['Outbound'] = np.where((max_sec > 0) & (max_sec == sec_ar), True, False)
+                res['Kurir '] = np.where((max_sec > 0) & (max_sec == sec_as), True, False)
+                
                 res['Late Proses By'] = np.select(
                     [
                         (max_sec > 0) & (max_sec == sec_an),
@@ -547,9 +537,6 @@ with st.container():
 
                 progress_bar.progress(90, text="Processing... (Menyusun laporan akhir & Excel) [90%]")
                 
-                res['Admin '] = res['Admin']
-                res['Kurir '] = res['Kurir']
-
                 kolom_final = [
                     'WMS Order', 'ERP Document Number', 'Tracking#/PRO#', 'PlatformOrder', 'Staged User', 
                     'Platform', 'Brand', 'Brand 2', 'Admin', 'Load', 'Kurir', 'Loader', 'Tanggal Handover', 
@@ -583,7 +570,7 @@ with st.container():
                 st.session_state['processed_result'] = final_df
 
                 output = BytesIO()
-                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                with pd.ExcelWriter(output, engine='xlsxwriter', datetime_format='mm/dd/yyyy') as writer:
                     df_to_export = final_df.drop(columns=['Master_Tracking'], errors='ignore')
                     df_to_export.columns = [c.strip() if c in ['Admin ', 'Kurir '] else c for c in df_to_export.columns]
                     
@@ -592,52 +579,47 @@ with st.container():
                     workbook = writer.book
                     worksheet_wms = writer.sheets['Laporan_WMS']
                     
-                    # Mengaktifkan proteksi sheet agar atribut hidden rumus aktif
-                    worksheet_wms.protect()
-                    
-                    # Format cell dengan hidden=True (sembunyikan rumus) dan locked=True
-                    format_hidden = workbook.add_format({'hidden': True, 'align': 'center', 'valign': 'vcenter', 'border': 1})
-                    format_hidden_time = workbook.add_format({'hidden': True, 'num_format': 'hh:mm:ss', 'border': 1, 'align': 'center', 'valign': 'vcenter'})
-                    
+                    # 5. Format Column Default (TANPA BORDER agar tak ter-border penuh 1 juta row)
                     format_header = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'border': 1, 'align': 'center', 'valign': 'vcenter'})
-                    cell_format_center = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
+                    cell_format_col = workbook.add_format({'align': 'center', 'valign': 'vcenter'})
                     
-                    col_idx_track = list(df_to_export.columns).index('Tracking#/PRO#')
-                    col_idx_plat = list(df_to_export.columns).index('PlatformOrder')
-                    
-                    for row_num in range(len(df_to_export)):
-                        val_track = str(df_to_export.iloc[row_num]['Tracking#/PRO#'])
-                        val_plat = str(df_to_export.iloc[row_num]['PlatformOrder'])
-                        if val_track != 'nan' and val_track != '': worksheet_wms.write_string(row_num + 1, col_idx_track, val_track, cell_format_center)
-                        if val_plat != 'nan' and val_plat != '': worksheet_wms.write_string(row_num + 1, col_idx_plat, val_plat, cell_format_center)
+                    # 3. Format khusus untuk data range sesungguhnya (Border mengikuti data limits, format time HH:MM:SS)
+                    format_data_border = workbook.add_format({'align': 'center', 'valign': 'vcenter', 'border': 1})
+                    format_time_border = workbook.add_format({'num_format': '[hh]:mm:ss', 'align': 'center', 'valign': 'vcenter', 'border': 1})
+                    format_date_border = workbook.add_format({'num_format': 'mm/dd/yyyy', 'align': 'center', 'valign': 'vcenter', 'border': 1})
 
-                        excel_row = row_num + 2
-                        
-                        # Menulis formula dengan format cell tersembunyi (hidden=True)
-                        worksheet_wms.write_formula(row_num + 1, 46, f"=MAX(IFERROR(VALUE(AN{excel_row}),0), IFERROR(VALUE(AO{excel_row}),0), IFERROR(VALUE(AP{excel_row}),0), IFERROR(VALUE(AQ{excel_row}),0), IFERROR(VALUE(AR{excel_row}),0), IFERROR(VALUE(AS{excel_row}),0), IFERROR(VALUE(AT{excel_row}),0))", format_hidden_time)
-                        worksheet_wms.write_formula(row_num + 1, 47, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AN{excel_row}), FALSE))", format_hidden)
-                        worksheet_wms.write_formula(row_num + 1, 48, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AO{excel_row}), FALSE))", format_hidden)
-                        worksheet_wms.write_formula(row_num + 1, 49, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AP{excel_row}), FALSE))", format_hidden)
-                        worksheet_wms.write_formula(row_num + 1, 50, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AQ{excel_row}), FALSE))", format_hidden)
-                        worksheet_wms.write_formula(row_num + 1, 51, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AR{excel_row}), FALSE))", format_hidden)
-                        worksheet_wms.write_formula(row_num + 1, 52, f"=AND(AU{excel_row}>0, AU{excel_row}=IFERROR(VALUE(AS{excel_row}), FALSE))", format_hidden)
-                        
-                        formula_late_by = (
-                            f'=IF(AV{excel_row}, "System", '
-                            f'IF(AW{excel_row}, "Admin", '
-                            f'IF(AX{excel_row}, "Picker", '
-                            f'IF(AY{excel_row}, "Packer", '
-                            f'IF(AZ{excel_row}, "Outbound", '
-                            f'IF(BA{excel_row}, "Kurir", ""))))))'
-                        )
-                        worksheet_wms.write_formula(row_num + 1, 53, formula_late_by, format_hidden)
+                    time_cols = [
+                        'Packing to Shpped Date', 'Packing to Handover', 'Shipped Date to Handover', 
+                        'End Ship Date to Shpped Date', 'Times Proses Kurir to Shpped Date', 
+                        'Pay-Created', 'Created-Released', 'Released-Pick', 'Pick-Pack', 
+                        'Pack-Collect', 'Collect-Manifest', 'Manifest-Endshipdate', 'Max'
+                    ]
 
+                    # Tulis Header dan Resize Kolom (tanpa mem-border full column)
                     for col_num, col_name in enumerate(df_to_export.columns):
                         worksheet_wms.write(0, col_num, col_name, format_header)
                         col_data_len = df_to_export.iloc[:, col_num].astype(str).str.len().max() if not df_to_export.empty else 0
                         header_len = len(str(col_name))
                         max_len = max(header_len, col_data_len)
-                        worksheet_wms.set_column(col_num, col_num, max_len + 4, cell_format_center)
+                        worksheet_wms.set_column(col_num, col_num, max_len + 4, cell_format_col)
+
+                    # Tulis ulang dan format spesifik HANYA batas row/col datanya (Border Akurat + Tanggal + Waktu)
+                    for row_num in range(len(df_to_export)):
+                        for col_num, col_name in enumerate(df_to_export.columns):
+                            val = df_to_export.iat[row_num, col_num]
+                            fmt = format_time_border if col_name in time_cols else (format_date_border if col_name == 'Tanggal Handover' else format_data_border)
+                            
+                            if pd.isna(val) or val == "":
+                                worksheet_wms.write_blank(row_num + 1, col_num, "", fmt)
+                            elif isinstance(val, bool):
+                                worksheet_wms.write_boolean(row_num + 1, col_num, val, fmt)
+                            elif isinstance(val, (int, float)):
+                                worksheet_wms.write_number(row_num + 1, col_num, val, fmt)
+                            elif isinstance(val, (datetime.datetime, datetime.date, pd.Timestamp)):
+                                worksheet_wms.write_datetime(row_num + 1, col_num, val, fmt)
+                            else:
+                                worksheet_wms.write_string(row_num + 1, col_num, str(val), fmt)
+
 
                     # ==========================================
                     # SHEET DB (DASHBOARD SUMMARY)
@@ -650,7 +632,6 @@ with st.container():
                     
                     df_brand = final_df['Brand'].value_counts().reset_index()
                     df_brand.columns = ['Brand', 'Delivered']
-                    df_brand.insert(0, 'No', range(1, len(df_brand) + 1))
                     
                     df_os_open = dfs.get('order_summary_open', dfs.get('order_summary', pd.DataFrame()))
                     if not df_os_open.empty:
@@ -680,6 +661,10 @@ with st.container():
                             df_brand['Target'] = 0
                     else:
                         df_brand['Target'] = 0
+                        
+                    # 7. Sortir Brand Sheet DB berdasar Delivered Terbesar ke Terdikit
+                    df_brand = df_brand.sort_values(by='Delivered', ascending=False).reset_index(drop=True)
+                    df_brand.insert(0, 'No', range(1, len(df_brand) + 1))
 
                     df_kurir = final_df['Kurir'].value_counts().reset_index()
                     df_kurir.columns = ['Courier_Name', 'Total_Package']
@@ -703,7 +688,7 @@ with st.container():
                     df_kurir_manifest = pd.DataFrame()
                     if 'Kurir' in final_df.columns and 'Times Proses Kurir to Shpped Date' in final_df.columns:
                         temp_k = final_df[['Kurir', 'Times Proses Kurir to Shpped Date']].copy()
-                        temp_k['sec'] = get_safe_seconds(temp_k['Times Proses Kurir to Shpped Date'])
+                        temp_k['sec'] = temp_k['Times Proses Kurir to Shpped Date'] * 86400  # Kembalikan ke seconds untuk dikalkulasi
                         grouped_k = temp_k.groupby('Kurir')['sec'].mean().reset_index()
                         grouped_k = grouped_k.sort_values(by='sec', ascending=True).reset_index(drop=True)
                         grouped_k['Avg_Process_Time'] = grouped_k['sec'].apply(lambda s: f"{int(s)//3600}:{(int(s)%3600)//60:02d}:{int(s)%60:02d}" if pd.notna(s) and s > 0 else "0:00:00")
@@ -782,11 +767,12 @@ with st.container():
                     val_other = int(is_other.sum())
                     val_jc_enabler = int(is_enabler.sum())
 
+                    # 6. Mengambil summary Pending Cut Off Qty secara akurat
                     val_pending = 0
                     if not raw_daily_df.empty:
                         col0 = raw_daily_df.columns[0]; col1 = raw_daily_df.columns[1] if len(raw_daily_df.columns) > 1 else col0
                         clean_daily = raw_daily_df[~(raw_daily_df[col0].astype(str).str.lower().str.contains('total', na=False) | raw_daily_df[col1].astype(str).str.lower().str.contains('total', na=False))]
-                        col_pending = next((c for c in clean_daily.columns if 'cut off' in c.lower() or 'pending' in c.lower()), None)
+                        col_pending = next((c for c in clean_daily.columns if 'pending cut off qty' in c.lower() or 'pending cut off' in c.lower()), None)
                         if col_pending:
                             val_pending = int(pd.to_numeric(clean_daily[col_pending].astype(str).str.replace(r'[^\d.-]', '', regex=True), errors='coerce').fillna(0).sum())
 
