@@ -438,7 +438,6 @@ with st.container():
                 def to_dt(col_name): 
                     return res.get('Handover_Date_Raw') if col_name == 'Handover Date' else pd.to_datetime(res.get(col_name), errors='coerce')
 
-                # Logika Waktu Durasi sesuai Perintah yang Benar:
                 res['Packing to Shpped Date'] = (to_dt('Shipped Date') - to_dt('Packing Complete')).dt.total_seconds().fillna(0) / 86400.0
                 res['Packing to Handover'] = (to_dt('Handover Date') - to_dt('Packing Complete')).dt.total_seconds().fillna(0) / 86400.0
                 res['Shipped Date to Handover'] = (to_dt('Handover Date') - to_dt('Shipped Date')).dt.total_seconds().fillna(0) / 86400.0
@@ -493,7 +492,6 @@ with st.container():
 
                 res['Status Late'] = np.nan; res['Remark Late'] = np.nan
                 
-                # Kalkulasi Durasi dalam Satuan Seconds Murni
                 sec_an = (to_dt('Created Time') - to_dt('Ordered Date')).dt.total_seconds().fillna(0)
                 sec_ao = (to_dt('Picking Task Created Time') - to_dt('Created Time')).dt.total_seconds().fillna(0)
                 sec_ap = (to_dt('pickCompletedTime - Released Date Pack') - to_dt('Picking Task Created Time')).dt.total_seconds().fillna(0)
@@ -504,7 +502,6 @@ with st.container():
 
                 max_sec = np.maximum.reduce([sec_an, sec_ao, sec_ap, sec_aq, sec_ar, sec_as, sec_at])
 
-                # Menerapkan Paste Value & Format Float time
                 res['Pay-Created'] = sec_an / 86400.0
                 res['Created-Released'] = sec_ao / 86400.0
                 res['Released-Pick'] = sec_ap / 86400.0
@@ -772,18 +769,12 @@ with st.container():
                     val_traceable = int(final_df['Master_Tracking'].eq('traceable').sum())
                     val_untraceable = int(final_df['Master_Tracking'].eq('untraceable').sum())
 
-                    # --- KALKULASI DINAMIS AVG SHIPPED & HANDOVER SESUAI FORMULA YANG BENAR ---
-                    dt_created = to_dt('Created Time')
-                    dt_shipped = to_dt('Shipped Date')
-                    dt_handover = to_dt('Handover Date')
-                    
-                    delta_shipped_sec = (dt_shipped - dt_created).dt.total_seconds()
-                    avg_ship_val = delta_shipped_sec[delta_shipped_sec > 0].mean() if not delta_shipped_sec[delta_shipped_sec > 0].empty else 0
+                    # --- KALKULASI DINAMIS AVG SHIPPED & HANDOVER SESUAI PERINTAH YANG BENAR ---
+                    avg_ship_val = (final_df['Packing to Shpped Date'] * 86400).mean()
                     if pd.isna(avg_ship_val): avg_ship_val = 0
                     str_avg_shipped = f"{int(avg_ship_val)//3600}:{(int(avg_ship_val)%3600)//60:02d}:{int(avg_ship_val)%60:02d}"
                     
-                    delta_handover_sec = (dt_handover - dt_created).dt.total_seconds()
-                    avg_ho_val = delta_handover_sec[delta_handover_sec > 0].mean() if not delta_handover_sec[delta_handover_sec > 0].empty else 0
+                    avg_ho_val = (final_df['Packing to Handover'] * 86400).mean()
                     if pd.isna(avg_ho_val): avg_ho_val = 0
                     str_avg_handover = f"{int(avg_ho_val)//3600}:{(int(avg_ho_val)%3600)//60:02d}:{int(avg_ho_val)%60:02d}"
 
