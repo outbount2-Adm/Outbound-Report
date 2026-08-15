@@ -114,6 +114,7 @@ custom_css = """
     div[data-testid="stButton"] > button {
         border-radius: 6px !important;
         font-weight: 600 !important;
+        height: 38px !important; /* Menyamakan tinggi tombol dengan tinggi text input */
     }
     
     .result-notif {
@@ -144,11 +145,9 @@ custom_css = """
         pointer-events: none !important;
     }
     
-    div[data-testid="column"] > div > div[data-testid="stVerticalBlock"] > div.element-container {
-        margin-top: 0px;
-    }
+    /* Penyesuaian margin agar tombol sejajar persis dengan kotak input di sebelah kiri */
     div[data-testid="column"] > div > div[data-testid="stVerticalBlock"] > div.stButton {
-        margin-top: 28px;
+        margin-top: 28px; 
     }
 </style>
 """
@@ -171,17 +170,19 @@ with st.container():
     if 'saved_admin' not in st.session_state:
         st.session_state['saved_admin'] = "Admin Logistik"
     
+    # Membuat 3 kolom agar input dan tombol-tombolnya berjejer dalam satu baris rata
     col_input, col_update, col_reset = st.columns([3, 1, 1])
+    
     with col_input:
         admin_input = st.text_input("✍️ Input Officer Name", value=st.session_state['saved_admin'])
+        
     with col_update:
-        st.write("")
         if st.button("Update Nama", use_container_width=True, type="secondary"):
             st.session_state['saved_admin'] = admin_input
             st.success("Nama diperbarui!")
             st.rerun()
+            
     with col_reset:
-        st.write("")
         if st.button("🗑️ Reset Cache", use_container_width=True, type="secondary"):
             if 'file_uploader_key' not in st.session_state: st.session_state['file_uploader_key'] = 0
             st.session_state['file_uploader_key'] += 1
@@ -190,7 +191,7 @@ with st.container():
             st.rerun()
 
     st.divider()
-    st.markdown('<div style="color: #475569; font-size: 14px; margin-bottom: 15px;">Seret dan lepas file sumber Anda di bawah ini untuk memulai pemrosesan otomatis.</div>', unsafe_allow_html=True)
+    st.markdown('<div style="color: #475569; font-size: 14px; margin-bottom: 15px;">Seret dan lepas file sumber di bawah ini untuk memulai pemrosesan otomatis.</div>', unsafe_allow_html=True)
 
     if 'file_uploader_key' not in st.session_state:
         st.session_state['file_uploader_key'] = 0
