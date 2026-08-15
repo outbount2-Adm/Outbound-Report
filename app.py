@@ -282,9 +282,9 @@ with st.container():
                 col_ext_order = next((c for c in res.columns if 'ext. order#' in c.lower()), None)
                 if col_ext_order:
                     erp_raw = res[col_ext_order].astype(str).str.strip()
-                    # PERBAIKAN: Hapus digit minus (-) di bagian paling belakang string ERP Document Number
                     res['ERP Document Number'] = np.where(erp_raw.str.startswith("CKSQ", na=False), erp_raw.str[:11], erp_raw.str[:14])
-                    res['ERP Document Number'] = pd.Series(res['ERP Document Number']).astype(str).str.rstrip('-')
+                    # PERBAIKAN: Menghapus tanda minus (-) di digit paling belakang secara permanen
+                    res['ERP Document Number'] = pd.Series(res['ERP Document Number']).astype(str).str.replace(r'-$', '', regex=True)
                 else:
                     res['ERP Document Number'] = np.nan
                 
@@ -771,7 +771,6 @@ with st.container():
                     val_traceable = int(final_df['Master_Tracking'].eq('traceable').sum())
                     val_untraceable = int(final_df['Master_Tracking'].eq('untraceable').sum())
 
-                    # --- KALKULASI DINAMIS AVG SHIPPED & HANDOVER SESUAI PERINTAH YANG BENAR ---
                     avg_ship_val = (final_df['Packing to Shpped Date'] * 86400).mean()
                     if pd.isna(avg_ship_val): avg_ship_val = 0
                     str_avg_shipped = f"{int(avg_ship_val)//3600}:{(int(avg_ship_val)%3600)//60:02d}:{int(avg_ship_val)%60:02d}"
