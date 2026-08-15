@@ -74,7 +74,7 @@ custom_css = """
         font-size: 16px;
         font-weight: 700;
         color: #262626;
-        margin-bottom: 15px;
+        margin-bottom: 20px;
         border-bottom: 1px solid #F0F0F0;
         padding-bottom: 10px;
     }
@@ -114,7 +114,6 @@ custom_css = """
     div[data-testid="stButton"] > button {
         border-radius: 6px !important;
         font-weight: 600 !important;
-        height: 38px !important;
     }
     
     .result-notif {
@@ -144,14 +143,6 @@ custom_css = """
         opacity: 0 !important;
         pointer-events: none !important;
     }
-
-    /* --- PENYESUAIAN KELAS KOLOM AGAR TOMBOL SEJAJAR DENGAN INPUT --- */
-    div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2),
-    div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(3) {
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-end;
-    }
 </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
@@ -173,19 +164,17 @@ with st.container():
     if 'saved_admin' not in st.session_state:
         st.session_state['saved_admin'] = "Admin Logistik"
     
-    # 3 Kolom sejajar
-    col_input, col_update, col_reset = st.columns([3, 1, 1])
-    
-    with col_input:
+    col_off1, col_off2, col_off3 = st.columns([3, 1, 1])
+    with col_off1:
         admin_input = st.text_input("✍️ Input Officer Name", value=st.session_state['saved_admin'])
-        
-    with col_update:
+    with col_off2:
+        st.write("")
         if st.button("Update Nama", use_container_width=True, type="secondary"):
             st.session_state['saved_admin'] = admin_input
             st.success("Nama diperbarui!")
             st.rerun()
-            
-    with col_reset:
+    with col_off3:
+        st.write("")
         if st.button("🗑️ Reset Cache", use_container_width=True, type="secondary"):
             if 'file_uploader_key' not in st.session_state: st.session_state['file_uploader_key'] = 0
             st.session_state['file_uploader_key'] += 1
@@ -293,7 +282,9 @@ with st.container():
                 col_ext_order = next((c for c in res.columns if 'ext. order#' in c.lower()), None)
                 if col_ext_order:
                     erp_raw = res[col_ext_order].astype(str).str.strip()
+                    # PERBAIKAN: Hapus digit minus (-) di bagian paling belakang string ERP Document Number
                     res['ERP Document Number'] = np.where(erp_raw.str.startswith("CKSQ", na=False), erp_raw.str[:11], erp_raw.str[:14])
+                    res['ERP Document Number'] = pd.Series(res['ERP Document Number']).astype(str).str.rstrip('-')
                 else:
                     res['ERP Document Number'] = np.nan
                 
@@ -780,6 +771,7 @@ with st.container():
                     val_traceable = int(final_df['Master_Tracking'].eq('traceable').sum())
                     val_untraceable = int(final_df['Master_Tracking'].eq('untraceable').sum())
 
+                    # --- KALKULASI DINAMIS AVG SHIPPED & HANDOVER SESUAI PERINTAH YANG BENAR ---
                     avg_ship_val = (final_df['Packing to Shpped Date'] * 86400).mean()
                     if pd.isna(avg_ship_val): avg_ship_val = 0
                     str_avg_shipped = f"{int(avg_ship_val)//3600}:{(int(avg_ship_val)%3600)//60:02d}:{int(avg_ship_val)%60:02d}"
