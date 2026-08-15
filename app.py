@@ -114,7 +114,7 @@ custom_css = """
     div[data-testid="stButton"] > button {
         border-radius: 6px !important;
         font-weight: 600 !important;
-        height: 38px !important; /* Menyamakan tinggi tombol dengan tinggi text input */
+        height: 38px !important;
     }
     
     .result-notif {
@@ -144,10 +144,13 @@ custom_css = """
         opacity: 0 !important;
         pointer-events: none !important;
     }
-    
-    /* Penyesuaian margin agar tombol sejajar persis dengan kotak input di sebelah kiri */
-    div[data-testid="column"] > div > div[data-testid="stVerticalBlock"] > div.stButton {
-        margin-top: 28px; 
+
+    /* --- PENYESUAIAN KELAS KOLOM AGAR TOMBOL SEJAJAR DENGAN INPUT --- */
+    div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2),
+    div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(3) {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
     }
 </style>
 """
@@ -170,7 +173,7 @@ with st.container():
     if 'saved_admin' not in st.session_state:
         st.session_state['saved_admin'] = "Admin Logistik"
     
-    # Membuat 3 kolom agar input dan tombol-tombolnya berjejer dalam satu baris rata
+    # 3 Kolom sejajar
     col_input, col_update, col_reset = st.columns([3, 1, 1])
     
     with col_input:
@@ -191,7 +194,7 @@ with st.container():
             st.rerun()
 
     st.divider()
-    st.markdown('<div style="color: #475569; font-size: 14px; margin-bottom: 15px;">Seret dan lepas file sumber di bawah ini untuk memulai pemrosesan otomatis.</div>', unsafe_allow_html=True)
+    st.markdown('<div style="color: #475569; font-size: 14px; margin-bottom: 15px;">Seret dan lepas file sumber Anda di bawah ini untuk memulai pemrosesan otomatis.</div>', unsafe_allow_html=True)
 
     if 'file_uploader_key' not in st.session_state:
         st.session_state['file_uploader_key'] = 0
